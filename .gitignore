@@ -34,3 +34,9 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker local state
+.docker/
+
+# Shell history
+.lesshst
