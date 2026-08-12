@@ -1,0 +1,36 @@
+# SSH
+.ssh/
+
+# Shell history
+.bash_history
+.bash_logout
+.bash_profile
+.bashrc
+
+# Git editor/config temporary files
+.gitconfig
+.gitconfig.swp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

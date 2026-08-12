@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TicketDesk | Modern Helpdesk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0, 0, 0, 0.15); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 0, 0, 0.3); }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        
+        #left-sidebar {
+            transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease-in-out;
+            overflow-x: hidden;
+            white-space: nowrap;
+        }
+        .sidebar-open { width: 200px; opacity: 1; }
+        .sidebar-closed { width: 0px; opacity: 0; padding-left: 0; padding-right: 0; border: none; }
+
+        .modal-shadow { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.2); }
+        .card-shadow { box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 0 1px rgba(0,0,0,0.1); }
+        .card-shadow:hover { box-shadow: 0 3px 8px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.2); }
+
+        .btn-apple { background-color: #007AFF; }
+        .btn-apple:hover { background-color: #0069d9; }
+
+        @keyframes shimmer {
+            0% { background-position: -200px 0; }
+            100% { background-position: calc(200px + 100%) 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200px 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        /* SMOOTH FOCUS HIGHLIGHT ANIMATION */
+        @keyframes highlight-pop {
+            0% { 
+                background-color: #ffffff; 
+                box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 0 0 2px rgba(0, 122, 255, 0.3); 
+                transform: scale(1.02); 
+            }
+            70% { 
+                background-color: #ffffff; 
+                box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 0 0 2px rgba(0, 122, 255, 0.3); 
+                transform: scale(1.02); 
+            }
+            100% { 
+                transform: scale(1); 
+                /* Fades smoothly back to the element's default CSS styles */
+            }
+        }
+        .highlight-focus {
+            animation: highlight-pop 1.2s ease-out forwards;
+            border-radius: 0.5rem;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-[#007AFF] selection:text-white">
+
+    <!-- Global Loading Overlay -->
+    <div id="global-loader" class="hidden fixed inset-0 z-[70] bg-white/60 backdrop-blur-[2px] flex items-center justify-center transition-opacity">
+        <div class="flex items-center gap-3 bg-white px-5 py-3 rounded-md shadow-lg border border-gray-100">
+            <svg class="animate-spin w-5 h-5 text-[#007AFF]" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span class="text-xs font-semibold text-gray-700" id="loader-text">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[60] bg-gray-900/60 backdrop-blur-[2px] flex items-center justify-center p-4">
+        <div class="absolute inset-0 z-0" onclick="closeConfirmModal(false)"></div>
+        <div class="relative z-10 w-[380px] bg-white rounded-md modal-shadow p-6 text-center border border-gray-200">
+            <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-500 text-xl font-bold">⚠️</div>
+            <h3 class="text-base font-bold text-gray-900 mb-1" id="confirm-title">Update Ticket Status?</h3>
+            <p class="text-xs text-gray-500 mb-6 leading-relaxed" id="confirm-msg">Are you sure you want to transition this ticket to the next state?</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeConfirmModal(false)" class="flex-1 px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">Cancel</button>
+                <button id="confirm-action-btn" onclick="closeConfirmModal(true)" class="flex-1 px-4 py-2 text-xs font-semibold text-white btn-apple rounded-md shadow-sm transition-colors">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Toolbar -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-gray-200/60 h-[52px] flex items-center justify-between px-4 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="w-8 h-8 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <div class="font-semibold text-[15px] tracking-tight text-gray-900 flex items-center gap-2">
+                TicketDesk
+                <span class="bg-[#007AFF]/10 text-[#007AFF] text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">POC</span>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <select id="current-user" onchange="switchUser()" class="appearance-none bg-gray-100 hover:bg-gray-200 text-gray-700 border border-transparent rounded-md pl-3 pr-8 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50 transition-colors cursor-pointer">
+                    <option value="Admin">IT Support (Admin)</option>
+                    <option value="Employee A">Employee A</option>
+                    <option value="Employee B">Employee B</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
+            <div class="w-7 h-7 bg-gradient-to-tr from-[#007AFF] to-[#5AC8FA] rounded-md flex items-center justify-center text-white font-bold text-xs shadow-sm" id="nav-avatar"></div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- Left Sidebar -->
+        <aside id="left-sidebar" class="sidebar-open bg-[#f5f5f7]/80 backdrop-blur-xl border-r border-gray-300/40 flex flex-col shrink-0 z-10 relative">
+            <div class="p-4" id="new-ticket-container">
+                <button onclick="toggleModal('new-ticket-modal', true)" class="w-full btn-apple text-white font-medium py-2 rounded-md shadow-sm transition-all text-sm flex items-center justify-center gap-2">
+                    <svg class="w-3 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    New Ticket
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-6 mt-1 pb-6">
+                <div>
+                    <h3 class="text-[11px] font-semibold text-gray-400/80 uppercase tracking-wider px-2 mb-1.5">Columns</h3>
+                    <ul class="space-y-0.5">
+                        <li onclick="scrollToAndHighlightColumn('OPEN')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer transition-colors"><div class="flex gap-2.5 items-center"><span class="text-blue-500">📥</span> Open</div><span id="count-OPEN" class="text-[11px] font-semibold text-gray-400">0</span></li>
+                        <li onclick="scrollToAndHighlightColumn('IN_PROGRESS')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer transition-colors"><div class="flex gap-2.5 items-center"><span class="text-orange-500">⏳</span> In Progress</div><span id="count-IN_PROGRESS" class="text-[11px] font-semibold text-gray-400">0</span></li>
+                        <li onclick="scrollToAndHighlightColumn('RESOLVED')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer transition-colors"><div class="flex gap-2.5 items-center"><span class="text-green-500">✅</span> Resolved</div><span id="count-RESOLVED" class="text-[11px] font-semibold text-gray-400">0</span></li>
+                        <li onclick="scrollToAndHighlightColumn('CLOSED')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer transition-colors"><div class="flex gap-2.5 items-center"><span class="text-gray-400">📁</span> Closed</div><span id="count-CLOSED" class="text-[11px] font-semibold text-gray-400">0</span></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-[11px] font-semibold text-gray-400/80 uppercase tracking-wider px-2 mb-1.5">Tags</h3>
+                    <ul class="space-y-0.5">
+                        <li onclick="filterAndHighlightTag('CRITICAL')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full bg-[#FF3B30]"></div>Critical</div><span id="count-CRITICAL" class="text-[11px] font-medium text-gray-400">0</span></li>
+                        <li onclick="filterAndHighlightTag('HIGH')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full bg-[#FF9500]"></div>High</div><span id="count-HIGH" class="text-[11px] font-medium text-gray-400">0</span></li>
+                        <li onclick="filterAndHighlightTag('MEDIUM')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full bg-[#007AFF]"></div>Medium</div><span id="count-MEDIUM" class="text-[11px] font-medium text-gray-400">0</span></li>
+                        <li onclick="filterAndHighlightTag('LOW')" class="flex justify-between items-center px-2 py-1.5 rounded-md text-[13px] text-gray-700 hover:bg-gray-200/50 cursor-pointer"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full bg-[#8E8E93]"></div>Low</div><span id="count-LOW" class="text-[11px] font-medium text-gray-400">0</span></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+            
+            <!-- Filter Bar -->
+            <div class="bg-white/50 backdrop-blur-sm border-b border-gray-200 px-4 py-2 flex items-center gap-4 shrink-0 z-10">
+                <span class="text-xs font-semibold text-gray-500 uppercase">Filters:</span>
+                <select id="filter-priority" onchange="applyFilters()" class="text-xs bg-white border border-gray-200 rounded px-2 py-1 shadow-sm focus:outline-none focus:border-blue-500">
+                    <option value="">All Priorities</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                </select>
+                <select id="filter-category" onchange="applyFilters()" class="text-xs bg-white border border-gray-200 rounded px-2 py-1 shadow-sm focus:outline-none focus:border-blue-500">
+                    <option value="">All Categories</option>
+                    <option value="Network">Network</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Software">Software</option>
+                    <option value="Access">Access</option>
+                </select>
+                <button onclick="clearFilters()" class="text-xs text-[#007AFF] hover:text-blue-800 font-medium">Clear All</button>
+            </div>
+
+            <!-- Kanban Board Area -->
+            <div id="kanban-scroll-area" class="flex-1 flex gap-3 p-4 overflow-x-auto overflow-y-hidden custom-scrollbar pr-16 relative">
+                
+                <div id="container-OPEN" class="w-[300px] shrink-0 flex flex-col h-full transition-transform">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <h2 class="text-[13px] font-semibold text-gray-600 tracking-wide uppercase">Open <span class="ml-1 text-[11px] font-medium text-gray-400 bg-gray-200/60 px-1.5 rounded-md" id="col-count-OPEN">0</span></h2>
+                    </div>
+                    <div id="col-OPEN" class="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pb-10 flex-1 px-1"></div>
+                </div>
+
+                <div id="container-IN_PROGRESS" class="w-[300px] shrink-0 flex flex-col h-full transition-transform">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <h2 class="text-[13px] font-semibold text-gray-600 tracking-wide uppercase">In Progress <span class="ml-1 text-[11px] font-medium text-gray-400 bg-gray-200/60 px-1.5 rounded-md" id="col-count-IN_PROGRESS">0</span></h2>
+                    </div>
+                    <div id="col-IN_PROGRESS" class="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pb-10 flex-1 px-1"></div>
+                </div>
+
+                <div id="container-RESOLVED" class="w-[300px] shrink-0 flex flex-col h-full transition-transform">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <h2 class="text-[13px] font-semibold text-gray-600 tracking-wide uppercase">Resolved <span class="ml-1 text-[11px] font-medium text-gray-400 bg-gray-200/60 px-1.5 rounded-md" id="col-count-RESOLVED">0</span></h2>
+                    </div>
+                    <div id="col-RESOLVED" class="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pb-10 flex-1 px-1"></div>
+                </div>
+
+                <div id="container-CLOSED" class="w-[300px] shrink-0 flex flex-col h-full transition-transform">
+                    <div class="flex justify-between items-center mb-2 px-1">
+                        <h2 class="text-[13px] font-semibold text-gray-600 tracking-wide uppercase">Closed <span class="ml-1 text-[11px] font-medium text-gray-400 bg-gray-200/60 px-1.5 rounded-md" id="col-count-CLOSED">0</span></h2>
+                    </div>
+                    <div id="col-CLOSED" class="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pb-10 flex-1 px-1"></div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Floating "New Ticket" Modal -->
+    <div id="new-ticket-modal" class="hidden fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity">
+        <div class="absolute inset-0 z-0" onclick="toggleModal('new-ticket-modal', false)"></div>
+        <div class="relative z-10 w-[500px] max-h-[85vh] bg-white rounded-md modal-shadow border border-gray-100 flex flex-col overflow-hidden">
+            
+            <div class="px-6 py-4 border-b border-gray-100 bg-white flex justify-between items-center shrink-0">
+                <h2 class="text-[15px] font-semibold text-gray-900 tracking-tight">Raise a Ticket</h2>
+                <button onclick="toggleModal('new-ticket-modal', false)" class="text-gray-400 hover:text-gray-700 text-xl">&times;</button>
+            </div>
+            
+            <div class="p-6 space-y-4 bg-[#fcfcfc] overflow-y-auto custom-scrollbar flex-1">
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 mb-1.5 block">TEMPLATE (16 OPTIONS)</label>
+                    <select id="template-select" onchange="applyTemplate(this.value)" class="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-[13px] text-gray-700 focus:outline-none focus:border-[#007AFF] transition-all cursor-pointer">
+                        <option value="">-- Choose a template or write custom --</option>
+                        <option value="vpn">1. VPN Connection Drops</option>
+                        <option value="hardware">2. Flickering Monitor Replacement</option>
+                        <option value="access">3. AWS IAM S3 Read Access</option>
+                        <option value="password">4. Password Reset Request</option>
+                        <option value="outlook">5. Outlook Crashing on Startup</option>
+                        <option value="printer">6. Office Printer Jammed (Floor 2)</option>
+                        <option value="wifi">7. Slow Wi-Fi Speed in Conf Room</option>
+                        <option value="bluescreen">8. Windows Blue Screen Crash</option>
+                        <option value="keyboard">9. Replacement Keyboard Needed</option>
+                        <option value="slack">10. Slack Notifications Not Working</option>
+                        <option value="zoom">11. Zoom Audio Failure in Meetings</option>
+                        <option value="git">12. Git Repository Permission Denied</option>
+                        <option value="db">13. Database Query Timeout Error</option>
+                        <option value="aws">14. AWS EC2 Instance Unreachable</option>
+                        <option value="mouse">15. Wireless Mouse Connection Lost</option>
+                        <option value="excel">16. Excel Macro Error on Export</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 mb-1.5 block">SUBJECT</label>
+                    <input type="text" id="new-title" class="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-[13px] focus:outline-none focus:border-[#007AFF] font-medium transition-all">
+                </div>
+                
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 mb-1.5 block">DETAILS</label>
+                    <textarea id="new-desc" rows="3" class="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-[13px] focus:outline-none focus:border-[#007AFF] resize-none transition-all"></textarea>
+                </div>
+
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <label class="text-[11px] font-semibold text-gray-500 mb-1.5 block">CATEGORY</label>
+                        <select id="new-category" class="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-[13px] focus:outline-none focus:border-[#007AFF]">
+                            <option value="Network">Network</option>
+                            <option value="Hardware">Hardware</option>
+                            <option value="Software">Software</option>
+                            <option value="Access">Access</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-[11px] font-semibold text-gray-500 mb-1.5 block">PRIORITY</label>
+                        <select id="new-priority" class="w-full bg-white border border-gray-200 rounded-md px-3 py-2 text-[13px] focus:outline-none focus:border-[#007AFF]">
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM" selected>Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="CRITICAL">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="text-[11px] font-semibold text-gray-500 mb-1.5 block">ATTACHMENT (MAX 10MB)</label>
+                    <input type="file" id="new-attachment" class="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-[11px] file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer border border-gray-200 rounded-md p-1 bg-white">
+                </div>
+            </div>
+            
+            <div class="px-6 py-4 bg-white border-t border-gray-100 flex justify-end gap-3 shrink-0">
+                <button onclick="toggleModal('new-ticket-modal', false)" class="px-4 py-1.5 text-[13px] font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">Cancel</button>
+                <button onclick="submitRealTicket()" class="btn-apple text-white px-5 py-1.5 text-[13px] font-medium rounded-md shadow-sm transition-colors">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Details Modal -->
+    <div id="ticket-details-modal" class="hidden fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="absolute inset-0 z-0" onclick="toggleModal('ticket-details-modal', false)"></div>
+        <div class="relative z-10 w-[600px] max-h-[85vh] bg-white rounded-md modal-shadow border border-gray-100 flex flex-col overflow-hidden">
+            
+            <div id="detail-stepper" class="w-full border-gray-100 pt-5 pb-4"></div>
+
+            <div class="px-6 py-5 border-b border-gray-100 flex justify-between items-start shrink-0 bg-white">
+                <div>
+                    <div class="flex items-center gap-2.5 mb-1.5">
+                        <div id="detail-priority-dot" class="w-2 h-2 rounded-full"></div>
+                        <h2 id="detail-title" class="text-lg font-bold text-gray-900 tracking-tight leading-tight">Title</h2>
+                    </div>
+                    <div class="flex gap-2 items-center text-xs">
+                        <span id="detail-id" class="text-gray-400 font-mono">#0</span>
+                        <span class="text-gray-300">|</span>
+                        <span id="detail-category" class="text-gray-500 font-medium">Category</span>
+                        <span class="text-gray-300">|</span>
+                        <span id="detail-date" class="text-gray-400">Date</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="detail-action-container"></div>
+                    <button onclick="toggleModal('ticket-details-modal', false)" class="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="px-6 py-6 overflow-y-auto custom-scrollbar flex-1 bg-[#fcfcfc]">
+                <div class="flex items-center bg-white p-4 rounded-md border border-gray-100 card-shadow mb-6">
+                    <img id="detail-emp-pic" src="" alt="Profile" class="w-11 h-11 rounded-md object-cover shadow-sm mr-4 border border-gray-100">
+                    <div>
+                        <div class="font-semibold text-gray-900 text-[14px] flex items-center gap-2 mb-1">
+                            <span id="detail-emp-name">Name</span> 
+                            <span class="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-medium" id="detail-emp-designation">Role</span>
+                        </div>
+                        <div class="text-[11.5px] text-gray-500 flex flex-wrap gap-x-3.5 font-medium">
+                            <span class="flex items-center gap-1">👔 <span id="detail-emp-id"></span></span>
+                            <span class="flex items-center gap-1">✉️ <span id="detail-emp-email"></span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-[13px] text-gray-700 mb-6 whitespace-pre-wrap leading-relaxed" id="detail-desc"></div>
+                <div id="detail-attachment" class="mb-8"></div>
+
+                <div class="border-t border-gray-100 pt-6">
+                    <h3 class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Activity</h3>
+                    <div id="detail-comments" class="space-y-4 mb-6"></div>
+                    
+                    <div class="flex gap-3 items-start bg-white p-3.5 rounded-md border border-gray-200 card-shadow">
+                        <textarea id="detail-new-comment" rows="1" placeholder="Write a reply..." class="w-full bg-transparent border-none px-1 text-[13px] focus:outline-none focus:ring-0 resize-none mt-1 text-gray-700 placeholder-gray-400"></textarea>
+                        <button onclick="addComment()" class="btn-apple text-white px-4 py-1.5 rounded-md text-[13px] font-medium transition-colors shrink-0 shadow-sm">Post</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Logic -->
+    <script>
+        // API Base URL (Relative path for ALB routing via CloudFront)
+        const API = '/api';
+        
+        let allTickets = [];
+        let filteredTickets = [];
+        let selectedTicketId = null;
+        let isSidebarOpen = true;
+        let pendingConfirmCallback = null;
+
+        const priorityConfig = {
+            CRITICAL: { dot: "bg-[#FF3B30]" },
+            HIGH: { dot: "bg-[#FF9500]" },
+            MEDIUM: { dot: "bg-[#007AFF]" },
+            LOW: { dot: "bg-[#8E8E93]" }
+        };
+
+        const employeeData = {
+            "Employee A": { id: "EMP-1042", email: "empa@ticketdesk.local", role: "Frontend Developer" },
+            "Employee B": { id: "EMP-2084", email: "empb@ticketdesk.local", role: "Product Manager" },
+            "Admin": { id: "ADM-0001", email: "admin@ticketdesk.local", role: "IT Support Administrator" },
+            "Default": { id: "EMP-0000", email: "user@ticketdesk.local", role: "Staff" }
+        };
+
+        // ==========================================
+        // UI INTERACTION: SCROLLING & WHITE FOCUS HIGHLIGHT
+        // ==========================================
+        
+        function scrollToAndHighlightColumn(status) {
+            const container = document.getElementById(`container-${status}`);
+            if(container) {
+                // Smoothly scroll the Kanban board to center the selected column
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                
+                // Reset animation if it was already playing, then apply it
+                container.classList.remove('highlight-focus');
+                void container.offsetWidth; // Trigger DOM reflow
+                container.classList.add('highlight-focus');
+                
+                // Remove the animation class exactly when it finishes (1.2 seconds)
+                setTimeout(() => container.classList.remove('highlight-focus'), 1200);
+            }
+        }
+
+        function filterAndHighlightTag(priority) {
+            // Apply the priority filter automatically
+            document.getElementById('filter-priority').value = priority;
+            applyFilters();
+            
+            // Wait slightly for DOM to render the new filtered cards, then animate
+            setTimeout(() => {
+                const matchingCards = document.querySelectorAll(`.ticket-card[data-priority="${priority}"]`);
+                if (matchingCards.length > 0) {
+                    // Scroll the board to the first highlighted card
+                    matchingCards[0].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+                
+                // Apply the pop-highlight effect to all matching cards
+                matchingCards.forEach(card => {
+                    card.classList.remove('highlight-focus');
+                    void card.offsetWidth;
+                    card.classList.add('highlight-focus');
+                    setTimeout(() => card.classList.remove('highlight-focus'), 1200);
+                });
+            }, 50);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('left-sidebar');
+            isSidebarOpen = !isSidebarOpen;
+            if(isSidebarOpen) {
+                sidebar.classList.remove('sidebar-closed');
+                sidebar.classList.add('sidebar-open');
+            } else {
+                sidebar.classList.remove('sidebar-open');
+                sidebar.classList.add('sidebar-closed');
+            }
+        }
+
+        function showLoader(text = "Loading...") {
+            document.getElementById('loader-text').innerText = text;
+            document.getElementById('global-loader').classList.remove('hidden');
+        }
+
+        function hideLoader() {
+            document.getElementById('global-loader').classList.add('hidden');
+        }
+
+        // ==========================================
+        // FILTER LOGIC
+        // ==========================================
+        
+        function clearFilters() {
+            document.getElementById('filter-priority').value = "";
+            document.getElementById('filter-category').value = "";
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const prioFilter = document.getElementById('filter-priority').value;
+            const catFilter = document.getElementById('filter-category').value;
+            
+            filteredTickets = allTickets.filter(t => {
+                let match = true;
+                if (prioFilter && t.priority !== prioFilter) match = false;
+                if (catFilter && t.category !== catFilter) match = false;
+                return match;
+            });
+            renderKanbanBoard();
+        }
+
+        // ==========================================
+        // BACKEND FETCHING (REAL API)
+        // ==========================================
+        
+        function getUser() { return document.getElementById('current-user').value; }
+        
+        async function switchUser() {
+            const user = getUser();
+            localStorage.setItem('ticketdesk_user', user); // Persist user selection
+
+            showLoader("Syncing session...");
+            
+            document.getElementById('new-ticket-container').style.display = (user === 'Admin') ? 'none' : 'block';
+            document.getElementById('nav-avatar').innerText = user.charAt(0);
+            
+            await loadData();
+            hideLoader();
+        }
+
+        async function loadData() {
+            renderSkeletons();
+            const user = getUser();
+            
+            try {
+                const response = await fetch(`${API}/tickets/?user=${encodeURIComponent(user)}`);
+                if (response.ok) {
+                    allTickets = await response.json();
+                } else {
+                    console.error("Failed to load tickets. Backend returned:", response.status);
+                    allTickets = [];
+                }
+            } catch (err) {
+                console.error("Network error hitting backend. Is main.py running?", err);
+                allTickets = [];
+            }
+            
+            updateDashboardCounts(); // Sidebar uses total tickets
+            applyFilters();          // Renders the kanban board based on filters
+            
+            if(selectedTicketId) openTicketDetails(selectedTicketId);
+        }
+
+        // ==========================================
+        // RENDERING
+        // ==========================================
+
+        function renderSkeletons() {
+            ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].forEach(s => {
+                const colEl = document.getElementById(`col-${s}`);
+                if(colEl) {
+                    colEl.innerHTML = `
+                        <div class="bg-white p-3 rounded-md card-shadow border border-gray-100 space-y-2">
+                            <div class="skeleton h-3 w-3/4 rounded"></div>
+                            <div class="skeleton h-2 w-full rounded"></div>
+                            <div class="skeleton h-2 w-1/2 rounded"></div>
+                        </div>
+                        <div class="bg-white p-3 rounded-md card-shadow border border-gray-100 space-y-2">
+                            <div class="skeleton h-3 w-2/3 rounded"></div>
+                            <div class="skeleton h-2 w-4/5 rounded"></div>
+                        </div>`;
+                }
+            });
+        }
+
+        function updateDashboardCounts() {
+            const statusCounts = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, CLOSED: 0 };
+            const prioCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+
+            allTickets.forEach(t => {
+                if(statusCounts[t.status] !== undefined) statusCounts[t.status]++;
+                if(prioCounts[t.priority] !== undefined) prioCounts[t.priority]++;
+            });
+
+            ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].forEach(s => {
+                const el = document.getElementById(`count-${s}`);
+                if(el) el.innerText = statusCounts[s];
+            });
+            ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].forEach(p => {
+                const el = document.getElementById(`count-${p}`);
+                if(el) el.innerText = prioCounts[p];
+            });
+        }
+
+        function renderKanbanBoard() {
+            const cols = { OPEN: '', IN_PROGRESS: '', RESOLVED: '', CLOSED: '' };
+            const statusCounts = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0, CLOSED: 0 };
+            
+            // Build HTML from filteredTickets
+            filteredTickets.forEach(t => {
+                statusCounts[t.status]++;
+                const dotCls = priorityConfig[t.priority].dot;
+                
+                // Added class "ticket-card" and data-priority for the focus highlight animation targeting
+                const cardHTML = `
+                <div data-priority="${t.priority}" onclick="openTicketDetails(${t.id})" class="ticket-card bg-white p-3 rounded-md card-shadow border border-gray-100 cursor-pointer transition-all group">
+                    <div class="flex justify-between items-start mb-1.5">
+                        <div class="flex items-start gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${dotCls}"></div>
+                            <h4 class="font-semibold text-[13px] text-gray-900 leading-snug group-hover:text-[#007AFF] transition-colors">${t.title}</h4>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-gray-500 line-clamp-2 mb-2 pl-3.5 leading-relaxed">${t.description}</p>
+                    <div class="flex justify-between items-end pl-3.5">
+                        <div class="text-[9px] text-gray-400 font-mono">#${t.id}</div>
+                        <img src="https://ui-avatars.com/api/?name=${t.created_by.replace(' ', '+')}&background=f5f5f7&color=1d1d1f&size=24" class="w-4 h-4 rounded border border-gray-100">
+                    </div>
+                </div>`;
+                
+                cols[t.status] += cardHTML;
+            });
+
+            ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].forEach(s => {
+                const colEl = document.getElementById(`col-${s}`);
+                const countEl = document.getElementById(`col-count-${s}`);
+                if(colEl) colEl.innerHTML = cols[s] || `<div class="text-[11px] text-gray-400 text-center py-4 border-2 border-dashed border-gray-200/60 rounded-md">No matching tickets</div>`;
+                if(countEl) countEl.innerText = statusCounts[s]; // Dynamic count inside column header
+            });
+        }
+
+        // ==========================================
+        // TICKET MODAL & MUTATIONS
+        // ==========================================
+
+        function renderStepper(status) {
+            const statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+            const labels = ['Open', 'In Progress', 'Resolved', 'Closed'];
+            const currentIndex = statuses.indexOf(status);
+
+            let html = `<div class="flex items-center w-full px-8">`;
+            for(let i=0; i<statuses.length; i++) {
+                const isCompleted = i <= currentIndex;
+                const isCurrent = i === currentIndex;
+                const dotColor = isCompleted ? 'bg-[#007AFF]' : 'bg-gray-200';
+                const textColor = isCurrent ? 'text-gray-900 font-bold' : (isCompleted ? 'text-[#007AFF] font-medium' : 'text-gray-400 font-medium');
+                const ring = isCurrent ? 'ring-4 ring-blue-100' : '';
+
+                html += `
+                    <div class="relative flex flex-col items-center">
+                        <div class="w-2.5 h-2.5 rounded-full ${dotColor} z-10 ${ring}"></div>
+                        <span class="absolute top-4 text-[9px] uppercase tracking-wider ${textColor} whitespace-nowrap">${labels[i]}</span>
+                    </div>
+                `;
+                
+                if (i < statuses.length - 1) {
+                    const lineColor = i < currentIndex ? 'bg-[#007AFF]' : 'bg-gray-200';
+                    html += `<div class="flex-1 h-[2px] ${lineColor} mx-2 rounded-full"></div>`;
+                }
+            }
+            html += `</div>`;
+            document.getElementById('detail-stepper').innerHTML = html;
+        }
+
+        function getTicketDate(id) {
+            const d = new Date();
+            d.setHours(d.getHours() - (id % 48));
+            d.setMinutes(d.getMinutes() - (id % 60));
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        }
+
+        function openTicketDetails(id) {
+            selectedTicketId = id;
+            const ticket = allTickets.find(t => t.id === id);
+            if(!ticket) return;
+
+            renderStepper(ticket.status);
+
+            document.getElementById('detail-title').innerText = ticket.title;
+            document.getElementById('detail-id').innerText = `#${ticket.id}`;
+            document.getElementById('detail-category').innerText = ticket.category;
+            document.getElementById('detail-date').innerText = getTicketDate(ticket.id);
+            document.getElementById('detail-priority-dot').className = `w-2 h-2 rounded-full shrink-0 ${priorityConfig[ticket.priority].dot}`;
+
+            const empInfo = employeeData[ticket.created_by] || employeeData["Default"];
+            document.getElementById('detail-emp-name').innerText = ticket.created_by;
+            document.getElementById('detail-emp-designation').innerText = empInfo.role;
+            document.getElementById('detail-emp-id').innerText = empInfo.id;
+            document.getElementById('detail-emp-email').innerText = empInfo.email;
+            document.getElementById('detail-emp-pic').src = `https://ui-avatars.com/api/?name=${ticket.created_by.replace(' ', '+')}&background=f5f5f7&color=1d1d1f&size=128`;
+
+            document.getElementById('detail-desc').innerText = ticket.description;
+            
+            document.getElementById('detail-attachment').innerHTML = ticket.file_url 
+                ? `<a href="#" class="inline-flex items-center gap-2 text-[11px] text-[#007AFF] bg-[#007AFF]/10 px-3 py-1.5 rounded-md hover:bg-[#007AFF]/20 transition-colors font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg> Attachment Linked</a>` 
+                : '';
+
+            const commentsHtml = ticket.comments.map(c => `
+                <div class="flex gap-3 items-start">
+                    <img src="https://ui-avatars.com/api/?name=${c.author.replace(' ', '+')}&background=f5f5f7&color=1d1d1f&size=32" class="w-6 h-6 rounded-md border border-gray-100">
+                    <div class="bg-white border border-gray-200 card-shadow rounded-md px-3.5 py-2.5 flex-1">
+                        <div class="font-semibold text-[11px] text-gray-800 mb-0.5">${c.author}</div>
+                        <div class="text-[12px] text-gray-600 whitespace-pre-wrap leading-relaxed">${c.text}</div>
+                    </div>
+                </div>`).join('');
+            document.getElementById('detail-comments').innerHTML = commentsHtml || `<div class="text-[11px] text-gray-400 italic">No activity yet.</div>`;
+
+            const isAdmin = getUser() === 'Admin';
+            let actionHtml = '';
+            if(isAdmin) {
+                if(ticket.status === 'OPEN') {
+                    actionHtml = `<button onclick="confirmStatusUpdate(${ticket.id}, 'IN_PROGRESS', 'Start Progress')" class="bg-[#FF9500] hover:bg-[#E08300] text-white px-3 py-1.5 rounded-md text-[11px] font-semibold shadow-sm transition-colors">Start Progress</button>`;
+                } else if (ticket.status === 'IN_PROGRESS') {
+                    actionHtml = `<button onclick="confirmStatusUpdate(${ticket.id}, 'RESOLVED', 'Mark Resolved')" class="bg-[#34C759] hover:bg-[#2DB94E] text-white px-3 py-1.5 rounded-md text-[11px] font-semibold shadow-sm transition-colors">Mark Resolved</button>`;
+                } else if (ticket.status === 'RESOLVED') {
+                    actionHtml = `<button onclick="confirmStatusUpdate(${ticket.id}, 'CLOSED', 'Close Ticket')" class="bg-[#8E8E93] hover:bg-[#7A7A7F] text-white px-3 py-1.5 rounded-md text-[11px] font-semibold shadow-sm transition-colors">Close Ticket</button>`;
+                } else {
+                    actionHtml = `<span class="bg-gray-100 text-gray-500 px-3 py-1.5 rounded-md text-[11px] font-semibold border border-gray-200">🔒 Closed</span>`;
+                }
+            } else {
+                actionHtml = `<span class="bg-[#007AFF]/10 text-[#007AFF] px-2.5 py-1 rounded-[4px] text-[9px] font-bold uppercase tracking-wider">${ticket.status.replace('_', ' ')}</span>`;
+            }
+            document.getElementById('detail-action-container').innerHTML = actionHtml;
+
+            toggleModal('ticket-details-modal', true);
+        }
+
+        function askConfirmation(title, message, callback) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-msg').innerText = message;
+            pendingConfirmCallback = callback;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal(confirmed) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (confirmed && pendingConfirmCallback) pendingConfirmCallback();
+            pendingConfirmCallback = null;
+        }
+
+        function confirmStatusUpdate(id, newStatus, actionName) {
+            askConfirmation(
+                `Confirm Status Update`,
+                `Are you sure you want to perform "${actionName}" for ticket #${id}?`,
+                () => updateStatus(id, newStatus)
+            );
+        }
+
+        async function updateStatus(id, newStatus) {
+            showLoader("Updating status...");
+            await fetch(`${API}/tickets/${id}/status`, { 
+                method: 'PUT', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ status: newStatus }) 
+            });
+            await loadData();
+            hideLoader();
+        }
+
+        async function addComment() {
+            if(!selectedTicketId) return;
+            const textEl = document.getElementById('detail-new-comment');
+            if(!textEl.value) return;
+            
+            showLoader("Posting comment...");
+            await fetch(`${API}/tickets/${selectedTicketId}/comments/`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ text: textEl.value, author: getUser() }) 
+            });
+            
+            textEl.value = '';
+            await loadData();
+            hideLoader();
+        }
+
+        function toggleModal(modalId, show) {
+            const modal = document.getElementById(modalId);
+            if(show) {
+                if(modalId === 'new-ticket-modal') {
+                    if(getUser() === 'Admin') return; 
+                    document.getElementById('template-select').value = "";
+                    applyTemplate("");
+                    document.getElementById('new-attachment').value = "";
+                }
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+                if(modalId === 'ticket-details-modal') selectedTicketId = null;
+            }
+        }
+
+        function applyTemplate(type) {
+            const title = document.getElementById('new-title');
+            const desc = document.getElementById('new-desc');
+            const cat = document.getElementById('new-category');
+            const pri = document.getElementById('new-priority');
+
+            const templates = {
+                vpn: { t: "VPN Connection Drops", d: "Error 412 when trying to connect via AnyConnect.", c: "Network", p: "HIGH" },
+                hardware: { t: "Flickering Monitor Replacement", d: "Secondary display goes completely black randomly.", c: "Hardware", p: "MEDIUM" },
+                access: { t: "AWS IAM S3 Read Access", d: "Need policy permission for debugging production bucket logs.", c: "Access", p: "LOW" },
+                password: { t: "Password Reset Request", d: "Locked out of corporate active directory account.", c: "Access", p: "CRITICAL" },
+                outlook: { t: "Outlook Crashing on Startup", d: "App freezes instantly when loading large PST file.", c: "Software", p: "MEDIUM" },
+                printer: { t: "Office Printer Jammed (Floor 2)", d: "Error code 404 showing on paper tray feed.", c: "Hardware", p: "LOW" },
+                wifi: { t: "Slow Wi-Fi Speed in Conf Room", d: "Packet loss exceeds 40% during team sync meetings.", c: "Network", p: "HIGH" },
+                bluescreen: { t: "Windows Blue Screen Crash", d: "Driver IRQL not less or equal crash dump generated.", c: "Hardware", p: "CRITICAL" },
+                keyboard: { t: "Replacement Keyboard Needed", d: "Spacebar and Enter keys are physically broken.", c: "Hardware", p: "LOW" },
+                slack: { t: "Slack Notifications Not Working", d: "Push notifications stopped working on desktop app.", c: "Software", p: "LOW" },
+                zoom: { t: "Zoom Audio Failure in Meetings", d: "Microphone input device is not recognized by client.", c: "Software", p: "HIGH" },
+                git: { t: "Git Repository Permission Denied", d: "SSH key rejected when pushing to main branch.", c: "Access", p: "MEDIUM" },
+                db: { t: "Database Query Timeout Error", d: "Staging database connection pool exhausted.", c: "Software", p: "CRITICAL" },
+                aws: { t: "AWS EC2 Instance Unreachable", d: "SSH connection timed out on web server node 3.", c: "Network", p: "CRITICAL" },
+                mouse: { t: "Wireless Mouse Connection Lost", d: "Receiver dongle not pairing with bluetooth mouse.", c: "Hardware", p: "LOW" },
+                excel: { t: "Excel Macro Error on Export", d: "Run-time error '1004' triggered during VBA report generation.", c: "Software", p: "MEDIUM" }
+            };
+
+            if (templates[type]) {
+                title.value = templates[type].t;
+                desc.value = templates[type].d;
+                cat.value = templates[type].c;
+                pri.value = templates[type].p;
+            } else {
+                title.value = "";
+                desc.value = "";
+            }
+        }
+
+        async function submitRealTicket() {
+            const title = document.getElementById('new-title').value;
+            const desc = document.getElementById('new-desc').value;
+            if(!title || !desc) return alert("Required fields missing");
+
+            const fileInput = document.getElementById('new-attachment');
+            if (fileInput.files.length > 0) {
+                if (fileInput.files[0].size > 10 * 1024 * 1024) {
+                    alert("File size exceeds the 10MB limit.");
+                    return; 
+                }
+            }
+
+            showLoader("Creating ticket...");
+
+            // 1. Create the ticket FIRST
+            const res = await fetch(`${API}/tickets/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    title, description: desc, 
+                    category: document.getElementById('new-category').value, 
+                    priority: document.getElementById('new-priority').value, 
+                    created_by: getUser() 
+                })
+            });
+            
+            if(res.ok) {
+                // Now we successfully have the newTicket.id
+                const newTicket = await res.json(); 
+
+                // 2. NOW handle the file upload
+                if(fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    try {
+                        // Request the presigned URL
+                        const authRes = await fetch(`${API}/tickets/${newTicket.id}/presigned-url?filename=${encodeURIComponent(file.name)}`);
+                        const authData = await authRes.json();
+                        
+                        // Upload the physical file to S3
+                        await fetch(authData.url, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/octet-stream'
+                            },
+                            body: file
+                        });
+                        
+                        // Tell the backend to save the S3 key to the database
+                        await fetch(`${API}/tickets/${newTicket.id}/attach`, { 
+                            method: 'PUT', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify({ file_url: authData.key }) 
+                        });
+                    } catch(e) { console.error("Upload failed:", e); }
+                }
+            } else {
+                alert("Failed to create ticket");
+            }
+
+            toggleModal('new-ticket-modal', false);
+            await loadData();
+            hideLoader();
+        }
+
+        // Initialize App
+        window.onload = () => { 
+            const savedUser = localStorage.getItem('ticketdesk_user') || 'Employee A';
+            document.getElementById('current-user').value = savedUser;
+            switchUser(); 
+        };
+    </script>
+</body>
+</html>
