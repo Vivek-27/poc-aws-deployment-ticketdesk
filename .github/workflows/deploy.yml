@@ -105,4 +105,4 @@ jobs:
       - name: Run Smoke Test against CloudFront
         run: |
           echo "Performing HTTP health check against CloudFront API endpoint..."
-          curl --fail --max-time 30 "${{ env.CLOUDFRONT_URL }}/api/health" || exit 1
+          curl --fail --max-time 30 "${{ env.CLOUDFRONT_URL }}/health" || exit 1
