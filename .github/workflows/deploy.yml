@@ -1,174 +1,105 @@
-name: TicketDesk CI/CD
+name: Deploy TicketDesk (Frontend & Backend)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: poc-ticketdesk-appilcation
+  ECS_SERVICE: poc-service
+  ECS_CLUSTER: poc-cluster
+  ECS_TASK_DEFINITION: poc-task
+  FRONTEND_BUCKET: poc-frontend-app-bucket
+  CLOUDFRONT_URL: https://d2l7w04nxsto25.cloudfront.net
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: poc-ticketdesk-appilcation
-  ECS_CLUSTER: tkt-vk-cluster
-  ECS_SERVICE: tkt-vk-service
-  ECS_TASK_DEFINITION: .aws/task-definition.json
-  CONTAINER_NAME: app
-  CLOUDFRONT_URL: https://d2dx6nyno76d22.cloudfront.net
-
 jobs:
-
-  # ==========================================
-  # 1. UNIT TESTS
-  # ==========================================
-  test:
-    name: Run Tests
+  test-and-scan:
+    name: Secret Scan & Unit Tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pytest httpx
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest httpx
 
-      - name: Run tests
-        env:
-          PYTHONPATH: .
-        run: |
-          pytest -v
-
-
-  # ==========================================
-  # 2. SECRET SCAN
-  # ==========================================
-  secret-scan:
-    name: Scan Repository for Secrets
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Run Secret Scan
+        uses: trufflesecurity/trufflehog-main-action@main
         with:
-          fetch-depth: 0
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
 
-      - name: Scan for secrets
-        uses: gitleaks/gitleaks-action@v2
-
-
-  # ==========================================
-  # 3. BUILD + PUSH + DEPLOY
-  # ==========================================
-  deploy:
-    name: Build and Deploy
+  deploy-app:
+    name: Deploy Infrastructure Assets
+    needs: test-and-scan
     runs-on: ubuntu-latest
-
-    needs:
-      - test
-      - secret-scan
-
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-
-      # ------------------------------------------
-      # AWS LOGIN
-      # ------------------------------------------
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v3
         with:
-          role-to-assume: arn:aws:iam::472151629881:role/tkt-vk-github-actions-role
+          role-to-assume: arn:aws:iam::472151629881:role/poc-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
+      # --- STEP 1: DEPLOY FRONTEND TO S3 ---
+      - name: Deploy Static Frontend to S3
+        run: |
+          echo "Syncing frontend static files to S3 bucket: $FRONTEND_BUCKET"
+          aws s3 sync static/ s3://$FRONTEND_BUCKET/ --delete
 
-      # ------------------------------------------
-      # ECR LOGIN
-      # ------------------------------------------
+      # --- STEP 2: BUILD & PUSH BACKEND TO ECR ---
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@v1
 
-
-      # ------------------------------------------
-      # BUILD IMAGE
-      # ------------------------------------------
-      - name: Build Docker image
+      - name: Build, Tag, and Push Image to ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-
         run: |
-          docker build \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          echo "IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-
-
-      # ------------------------------------------
-      # PUSH IMAGE TO ECR
-      # ------------------------------------------
-      - name: Push Docker image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-
+      # --- STEP 3: UPDATE ECS SERVICE ---
+      - name: Download Active Task Definition
         run: |
-          docker push \
-            $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION --query taskDefinition > task-definition.json
 
-
-      # ------------------------------------------
-      # UPDATE ECS TASK DEFINITION
-      # ------------------------------------------
-      - name: Update ECS task definition
+      - name: Fill in New Image ID in Task Definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.IMAGE }}
+          task-definition: task-definition.json
+          container-name: app
+          image: ${{ steps.build-image.outputs.image }}
 
-
-      # ------------------------------------------
-      # DEPLOY TO ECS
-      # ------------------------------------------
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+      - name: Deploy Amazon ECS Task Definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
+          service: $ECS_SERVICE
+          cluster: $ECS_CLUSTER
           wait-for-service-stability: true
 
-
-      # ------------------------------------------
-      # SMOKE TEST
-      # ------------------------------------------
-      - name: Smoke test
+      # --- STEP 4: SMOKE TEST ---
+      - name: Run Smoke Test against CloudFront
         run: |
-          echo "Waiting for application..."
-          sleep 20
-
-          echo "Testing CloudFront:"
-          echo "${CLOUDFRONT_URL}/health"
-
-          curl --fail \
-            --silent \
-            --show-error \
-            "${CLOUDFRONT_URL}/health"
-
-          echo ""
-          echo "Smoke test passed!"
+          echo "Performing HTTP health check against CloudFront API endpoint..."
+          curl --fail --max-time 30 "$CLOUDFRONT_URL/api/health" || exit 1
