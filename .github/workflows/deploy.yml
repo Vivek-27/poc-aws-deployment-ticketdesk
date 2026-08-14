@@ -43,7 +43,7 @@ jobs:
           path: ./
 
       - name: Run Unit Tests
-        run: pytest tests/
+        run: python -m pytest tests/
 
   deploy-app:
     name: Deploy Infrastructure Assets
