@@ -30,6 +30,8 @@ env/
 # IDE
 .vscode/
 .idea/
+.local
+
 
 # OS
 .DS_Store
