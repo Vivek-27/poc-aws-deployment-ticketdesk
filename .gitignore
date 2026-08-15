@@ -16,7 +16,27 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+# ==========================================
+# 4. CI/CD & DOCKER TEMPORARY FILES
+# ==========================================
+# ECS Task Definition JSON created during GitHub Actions runs
+task-definition.json
 
+# Installed Linux binaries in lambda_src (installed via pip install -t)
+**/lambda_src/PIL/
+**/lambda_src/Pillow*
+**/lambda_src/pillow.libs/
+# ==========================================
+# 3. LAMBDA BUILD ARTIFACTS
+# ==========================================
+# Zipped Lambda bundles created by Terraform
+**/*.zip
+**/thumbnail_lambda.zip
+
+# Installed Linux binaries in lambda_src (installed via pip install -t)
+**/lambda_src/PIL/
+**/lambda_src/Pillow*
+**/lambda_src/pillow.libs/
 # Virtual environments
 venv/
 .venv/
@@ -27,11 +47,14 @@ env/
 .env.*
 !.env.example
 
+
+
 # IDE
 .vscode/
 .idea/
 .local
-
+*.swp
+*.swo
 
 # OS
 .DS_Store
@@ -42,3 +65,21 @@ Thumbs.db
 
 # Shell history
 .lesshst
+
+
+# ==========================================
+# 2. TERRAFORM LOCAL ARTIFACTS & STATE
+# ==========================================
+# Local plugin directories and state files
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/tfplan
+**/*.tfvars.json
+
+# Sensitive variable overrides (if storing real secrets locally)
+**/secret.tfvars
+
+*.db
+ticketdesk.db
