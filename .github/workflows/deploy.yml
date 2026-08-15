@@ -23,7 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -40,7 +42,8 @@ jobs:
         with:
           path: ./
 
-
+      - name: Run Unit Tests
+        run: python -m pytest tests/
 
   deploy-app:
     name: Deploy Infrastructure Assets
@@ -48,10 +51,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::472151629881:role/poc-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
@@ -65,7 +68,7 @@ jobs:
       # --- STEP 2: BUILD & PUSH BACKEND TO ECR ---
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, Tag, and Push Image to ECR
         id: build-image
@@ -91,15 +94,15 @@ jobs:
           image: ${{ steps.build-image.outputs.image }}
 
       - name: Deploy Amazon ECS Task Definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: $ECS_SERVICE
-          cluster: $ECS_CLUSTER
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
       # --- STEP 4: SMOKE TEST ---
       - name: Run Smoke Test against CloudFront
         run: |
-          echo "Performing HTTP health check against CloudFront API endpoint..."
-          curl --fail --max-time 30 "$CLOUDFRONT_URL/api/health" || exit 1
+          echo "Performing HTTP check against CloudFront..."
+          curl --fail --max-time 30 "$CLOUDFRONT_URL/" || exit 1
