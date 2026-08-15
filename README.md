@@ -1,824 +1,1903 @@
-# 📐 AWS Architecture Diagrams
+# 🎫 TicketDesk — Cloud-Native AWS Deployment POC
 
-The following diagrams show how the AWS services used by TicketDesk communicate with each other.
+> **Capstone POC — Deploy a Real Application on AWS**
+> **Level:** Foundation
+> **Stream:** Python / FastAPI
+> **Application:** TicketDesk IT Support Ticket Tracker
+> **Infrastructure:** AWS + Terraform
+> **CI/CD:** GitHub Actions + AWS OIDC
+> **Deployment Model:** Containerized, private ECS Fargate backend with CloudFront frontend
 
 ---
 
-## 1. 🏗️ Complete AWS Architecture
+# 1. 📌 POC Overview
 
-```html
-<svg width="100%" viewBox="0 0 1200 780" xmlns="http://www.w3.org/2000/svg">
+TicketDesk is an IT support ticket tracking application used as a practical AWS deployment project.
 
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10"
-            refX="9" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
-    </marker>
+The purpose of this POC is **not to develop application features**. The application is provided as a working FastAPI application. The objective is to learn how to take an existing application and deploy it on AWS in a secure, repeatable, production-style architecture.
 
-    <style>
-      .service {
-        fill: #ffffff;
-        stroke: #333333;
-        stroke-width: 2;
-        rx: 12;
-      }
+The POC covers:
 
-      .aws {
-        fill: #fff7ed;
-        stroke: #f97316;
-        stroke-width: 2;
-        rx: 12;
-      }
+* Containerization with Docker
+* Amazon ECR
+* Amazon ECS Fargate
+* Application Load Balancer
+* VPC and subnet design
+* Public and private subnets
+* Amazon RDS PostgreSQL
+* AWS Secrets Manager
+* AWS Systems Manager Parameter Store
+* Amazon S3
+* Amazon CloudFront
+* AWS Lambda
+* IAM roles and least privilege
+* GitHub Actions CI/CD
+* GitHub OIDC authentication
+* CloudWatch logging and monitoring
+* Terraform Infrastructure as Code
+* Automated deployment
+* Smoke testing
+* Security and deployment readiness
+* Cost management
+* Complete infrastructure teardown and rebuild
 
-      .security {
-        fill: #f5f3ff;
-        stroke: #7c3aed;
-        stroke-width: 2;
-        rx: 12;
-      }
+The target outcome is:
 
-      .storage {
-        fill: #eff6ff;
-        stroke: #2563eb;
-        stroke-width: 2;
-        rx: 12;
-      }
+> **A working application that can be deployed to AWS from code, without manually creating AWS resources, and can be destroyed and rebuilt from zero.**
 
-      .compute {
-        fill: #ecfdf5;
-        stroke: #059669;
-        stroke-width: 2;
-        rx: 12;
-      }
+---
 
-      .text {
-        font-family: Arial, sans-serif;
-        fill: #111827;
-        font-size: 16px;
-      }
+# 2. 🎯 POC Objectives
 
-      .small {
-        font-family: Arial, sans-serif;
-        fill: #4b5563;
-        font-size: 13px;
-      }
+The original POC is divided into two phases.
 
-      .title {
-        font-family: Arial, sans-serif;
-        font-weight: bold;
-        fill: #111827;
-        font-size: 20px;
-      }
+## Individual Phase — M0 to M5
 
-      .arrow {
-        stroke: #374151;
-        stroke-width: 2;
-        fill: none;
-        marker-end: url(#arrow);
-      }
+Each developer independently deploys the application and builds the AWS foundation.
 
-      .dashed {
-        stroke-dasharray: 7 5;
-      }
-    </style>
-  </defs>
+| Milestone | Objective                                                      |
+| --------- | -------------------------------------------------------------- |
+| M0        | Deploy application manually using AWS Console                  |
+| M1        | Containerize application and push image to ECR                 |
+| M2        | Recreate infrastructure completely using Terraform             |
+| M3        | Add RDS database and secure configuration                      |
+| M4        | Deploy frontend using S3 + CloudFront                          |
+| M5        | Implement S3 presigned uploads and Lambda thumbnail generation |
 
-  <!-- Title -->
-  <text x="600" y="35" text-anchor="middle" class="title">
-    TicketDesk — AWS Cloud Architecture
-  </text>
+## Pod Phase — M6 to M8
 
-  <!-- Client -->
-  <rect x="40" y="100" width="160" height="75" class="service"/>
-  <text x="120" y="130" text-anchor="middle" class="text">🌐 Browser</text>
-  <text x="120" y="153" text-anchor="middle" class="small">End User</text>
+The team adds production-style operational capabilities.
 
-  <!-- CloudFront -->
-  <rect x="270" y="100" width="190" height="75" class="aws"/>
-  <text x="365" y="130" text-anchor="middle" class="text">☁️ CloudFront</text>
-  <text x="365" y="153" text-anchor="middle" class="small">CDN / Routing</text>
+| Milestone | Objective                                            |
+| --------- | ---------------------------------------------------- |
+| M6        | Build automated CI/CD pipeline                       |
+| M7        | Add CloudWatch observability and alarms              |
+| M8        | Harden, test, tag, measure cost, destroy and rebuild |
 
-  <!-- Frontend S3 -->
-  <rect x="520" y="70" width="210" height="80" class="storage"/>
-  <text x="625" y="103" text-anchor="middle" class="text">🪣 S3</text>
-  <text x="625" y="125" text-anchor="middle" class="small">Private Frontend</text>
-  <text x="625" y="142" text-anchor="middle" class="small">OAC Protected</text>
+---
 
-  <!-- ALB -->
-  <rect x="520" y="190" width="210" height="80" class="aws"/>
-  <text x="625" y="223" text-anchor="middle" class="text">⚖️ Application</text>
-  <text x="625" y="244" text-anchor="middle" class="text">Load Balancer</text>
-  <text x="625" y="261" text-anchor="middle" class="small">Public Subnets</text>
+# 3. 🏗️ Final AWS Architecture
 
-  <!-- ECS -->
-  <rect x="800" y="190" width="210" height="80" class="compute"/>
-  <text x="905" y="223" text-anchor="middle" class="text">🐳 ECS Fargate</text>
-  <text x="905" y="245" text-anchor="middle" class="small">FastAPI Container</text>
-  <text x="905" y="261" text-anchor="middle" class="small">Private Subnets</text>
+```text
+                              ┌──────────────────────┐
+                              │       Browser        │
+                              └──────────┬───────────┘
+                                         │
+                                         │ HTTPS
+                                         ▼
+                              ┌──────────────────────┐
+                              │     CloudFront       │
+                              │       CDN            │
+                              └──────────┬───────────┘
+                                         │
+                         ┌───────────────┴───────────────┐
+                         │                               │
+                         │ /api/*                        │ /*
+                         ▼                               ▼
+              ┌────────────────────┐          ┌────────────────────┐
+              │ Application Load   │          │ Private S3         │
+              │ Balancer           │          │ Frontend Bucket    │
+              │ Public Subnets     │          │ OAC Protected      │
+              └─────────┬──────────┘          └────────────────────┘
+                        │
+                        │ HTTP
+                        ▼
+              ┌────────────────────┐
+              │   ECS Fargate      │
+              │   FastAPI API      │
+              │   Private Subnets  │
+              └──────┬─────┬───────┘
+                     │     │
+              ┌──────┘     └────────────────┐
+              │                             │
+              ▼                             ▼
+      ┌─────────────────┐          ┌────────────────────┐
+      │ RDS PostgreSQL  │          │ Secrets Manager    │
+      │ Private Subnet  │          │ DB Credentials     │
+      └─────────────────┘          └────────────────────┘
 
-  <!-- RDS -->
-  <rect x="800" y="340" width="210" height="80" class="storage"/>
-  <text x="905" y="373" text-anchor="middle" class="text">🗄️ RDS PostgreSQL</text>
-  <text x="905" y="395" text-anchor="middle" class="small">Private Database</text>
 
-  <!-- Secrets -->
-  <rect x="520" y="340" width="210" height="80" class="security"/>
-  <text x="625" y="373" text-anchor="middle" class="text">🔐 Secrets Manager</text>
-  <text x="625" y="395" text-anchor="middle" class="small">DB Credentials</text>
-
-  <!-- Parameter Store -->
-  <rect x="520" y="470" width="210" height="80" class="security"/>
-  <text x="625" y="503" text-anchor="middle" class="text">⚙️ Parameter Store</text>
-  <text x="625" y="525" text-anchor="middle" class="small">Application Config</text>
-
-  <!-- Upload S3 -->
-  <rect x="800" y="470" width="210" height="80" class="storage"/>
-  <text x="905" y="503" text-anchor="middle" class="text">🪣 S3 Uploads</text>
-  <text x="905" y="525" text-anchor="middle" class="small">Attachments</text>
-
-  <!-- Lambda -->
-  <rect x="800" y="610" width="210" height="80" class="compute"/>
-  <text x="905" y="643" text-anchor="middle" class="text">λ Lambda</text>
-  <text x="905" y="665" text-anchor="middle" class="small">Thumbnail Generator</text>
-
-  <!-- Arrows -->
-
-  <!-- Browser -> CloudFront -->
-  <path d="M200 137 L270 137" class="arrow"/>
-  <text x="235" y="125" text-anchor="middle" class="small">HTTPS</text>
-
-  <!-- CloudFront -> Frontend S3 -->
-  <path d="M460 115 L520 110" class="arrow"/>
-  <text x="490" y="98" text-anchor="middle" class="small">Static *</text>
-
-  <!-- CloudFront -> ALB -->
-  <path d="M460 160 L520 215" class="arrow"/>
-  <text x="490" y="195" text-anchor="middle" class="small">/api/*</text>
-
-  <!-- ALB -> ECS -->
-  <path d="M730 230 L800 230" class="arrow"/>
-  <text x="765" y="217" text-anchor="middle" class="small">HTTP</text>
-
-  <!-- ECS -> RDS -->
-  <path d="M905 270 L905 340" class="arrow"/>
-  <text x="925" y="310" class="small">SQL</text>
-
-  <!-- ECS -> Secrets -->
-  <path d="M800 270 L730 350" class="arrow"/>
-  <text x="750" y="310" text-anchor="middle" class="small">Read secret</text>
-
-  <!-- ECS -> Parameter Store -->
-  <path d="M850 270 L700 470" class="arrow"/>
-  <text x="770" y="390" text-anchor="middle" class="small">Read config</text>
-
-  <!-- ECS -> Upload S3 -->
-  <path d="M950 270 L950 470" class="arrow dashed"/>
-  <text x="970" y="375" class="small">Presigned URL</text>
-
-  <!-- S3 -> Lambda -->
-  <path d="M905 550 L905 610" class="arrow"/>
-  <text x="940" y="585" class="small">ObjectCreated</text>
-
-  <!-- Lambda -> S3 -->
-  <path d="M800 650 L700 650 L700 510 L800 510" class="arrow dashed"/>
-  <text x="750" y="630" text-anchor="middle" class="small">Write thumbnail</text>
-
-  <!-- VPC boundary -->
-  <rect x="480" y="175" width="580" height="255"
-        fill="none"
-        stroke="#9ca3af"
-        stroke-width="2"
-        stroke-dasharray="10 7"
-        rx="15"/>
-
-  <text x="500" y="200" class="small">
-    AWS VPC — Public + Private Subnets
-  </text>
-
-</svg>
+Browser
+   │
+   │ Presigned URL
+   ▼
+┌────────────────────┐
+│ S3 Upload Bucket   │
+└─────────┬──────────┘
+          │
+          │ ObjectCreated
+          ▼
+┌────────────────────┐
+│ Lambda             │
+│ Thumbnail Generator│
+│ Pillow             │
+└─────────┬──────────┘
+          │
+          ▼
+┌────────────────────┐
+│ thumbnails/        │
+│ prefix in S3       │
+└────────────────────┘
 ```
 
 ---
 
-# 2. 🔀 CloudFront Routing
+# 4. 🔄 Application Request Flow
 
-The application uses CloudFront as the single public entry point.
+## 4.1 Frontend Request
 
-```html
-<svg width="100%" viewBox="0 0 1100 500" xmlns="http://www.w3.org/2000/svg">
-
-  <defs>
-    <marker id="arrow2" markerWidth="10" markerHeight="10"
-            refX="9" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
-    </marker>
-
-    <style>
-      .box {
-        fill: white;
-        stroke: #333;
-        stroke-width: 2;
-        rx: 12;
-      }
-
-      .cdn {
-        fill: #fff7ed;
-        stroke: #f97316;
-        stroke-width: 2;
-        rx: 12;
-      }
-
-      .backend {
-        fill: #ecfdf5;
-        stroke: #059669;
-        stroke-width: 2;
-        rx: 12;
-      }
-
-      .storage {
-        fill: #eff6ff;
-        stroke: #2563eb;
-        stroke-width: 2;
-        rx: 12;
-      }
-
-      text {
-        font-family: Arial, sans-serif;
-        fill: #111827;
-      }
-
-      .title {
-        font-size: 22px;
-        font-weight: bold;
-      }
-
-      .label {
-        font-size: 16px;
-        font-weight: bold;
-      }
-
-      .small {
-        font-size: 13px;
-        fill: #4b5563;
-      }
-
-      .arrow {
-        stroke: #374151;
-        stroke-width: 2.5;
-        fill: none;
-        marker-end: url(#arrow2);
-      }
-    </style>
-  </defs>
-
-  <text x="550" y="35" text-anchor="middle" class="title">
-    TicketDesk — CloudFront Routing
-  </text>
-
-  <!-- Browser -->
-  <rect x="50" y="200" width="180" height="80" class="box"/>
-  <text x="140" y="235" text-anchor="middle" class="label">
-    Browser
-  </text>
-  <text x="140" y="258" text-anchor="middle" class="small">
-    CloudFront URL
-  </text>
-
-  <!-- CloudFront -->
-  <rect x="330" y="170" width="220" height="140" class="cdn"/>
-  <text x="440" y="215" text-anchor="middle" class="label">
-    CloudFront
-  </text>
-  <text x="440" y="240" text-anchor="middle" class="small">
-    Single Public Entry Point
-  </text>
-  <text x="440" y="265" text-anchor="middle" class="small">
-    Path Based Routing
-  </text>
-
-  <!-- S3 -->
-  <rect x="700" y="80" width="230" height="90" class="storage"/>
-  <text x="815" y="118" text-anchor="middle" class="label">
-    S3 Frontend
-  </text>
-  <text x="815" y="142" text-anchor="middle" class="small">
-    Private + OAC
-  </text>
-
-  <!-- ALB -->
-  <rect x="700" y="300" width="230" height="90" class="backend"/>
-  <text x="815" y="338" text-anchor="middle" class="label">
-    Application Load Balancer
-  </text>
-  <text x="815" y="362" text-anchor="middle" class="small">
-    Public Subnets
-  </text>
-
-  <!-- arrows -->
-  <path d="M230 240 L330 240" class="arrow"/>
-  <text x="280" y="225" text-anchor="middle" class="small">
-    HTTPS
-  </text>
-
-  <path d="M550 205 L700 130" class="arrow"/>
-  <text x="625" y="150" text-anchor="middle" class="small">
-    /* Static
-  </text>
-
-  <path d="M550 275 L700 340" class="arrow"/>
-  <text x="625" y="300" text-anchor="middle" class="small">
-    /api/*
-  </text>
-
-</svg>
-```
-
-### Routing Rules
-
-| Request  | CloudFront Origin          |
-| -------- | -------------------------- |
-| `/*`     | Private S3 Frontend Bucket |
-| `/api/*` | Application Load Balancer  |
-
-This allows users to access the complete application through one CloudFront URL.
+1. User opens the CloudFront URL.
+2. CloudFront receives the request.
+3. Static frontend files are served from the private S3 frontend bucket.
+4. S3 is not publicly accessible.
+5. CloudFront uses Origin Access Control to access the bucket.
 
 ---
 
-# 3. 🚀 CI/CD Architecture
+## 4.2 API Request
 
-Terraform provisions the AWS infrastructure and GitHub Actions performs application deployment.
+For requests beginning with:
 
-```html
-<svg width="100%" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
+```text
+/api/*
+```
 
-  <defs>
-    <marker id="arrow3" markerWidth="10" markerHeight="10"
-            refX="9" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
-    </marker>
+the request follows:
 
-    <style>
-      .dev {
-        fill: #f3f4f6;
-        stroke: #374151;
-        stroke-width: 2;
-        rx: 12;
-      }
+```text
+Browser
+   ↓
+CloudFront
+   ↓
+Application Load Balancer
+   ↓
+ECS Fargate
+   ↓
+FastAPI
+```
 
-      .github {
-        fill: #f5f3ff;
-        stroke: #7c3aed;
-        stroke-width: 2;
-        rx: 12;
-      }
+The ECS application runs inside private subnets.
 
-      .aws {
-        fill: #fff7ed;
-        stroke: #f97316;
-        stroke-width: 2;
-        rx: 12;
-      }
+The ALB is the public entry point for the backend.
 
-      .compute {
-        fill: #ecfdf5;
-        stroke: #059669;
-        stroke-width: 2;
-        rx: 12;
-      }
+---
 
-      .storage {
-        fill: #eff6ff;
-        stroke: #2563eb;
-        stroke-width: 2;
-        rx: 12;
-      }
+## 4.3 Database Request
 
-      text {
-        font-family: Arial, sans-serif;
-        fill: #111827;
-      }
+The application communicates with:
 
-      .title {
-        font-size: 22px;
-        font-weight: bold;
-      }
+```text
+ECS Fargate
+      ↓
+RDS PostgreSQL
+```
 
-      .label {
-        font-size: 15px;
-        font-weight: bold;
-      }
+The database is deployed inside private subnets and is not publicly accessible.
 
-      .small {
-        font-size: 12px;
-        fill: #4b5563;
-      }
+Database credentials are not stored in the source code.
 
-      .arrow {
-        stroke: #374151;
-        stroke-width: 2;
-        fill: none;
-        marker-end: url(#arrow3);
-      }
-    </style>
-  </defs>
+The application retrieves the credentials at runtime using AWS Secrets Manager.
 
-  <text x="600" y="35" text-anchor="middle" class="title">
-    TicketDesk — CI/CD Deployment Pipeline
-  </text>
+---
 
-  <!-- Developer -->
-  <rect x="40" y="230" width="150" height="80" class="dev"/>
-  <text x="115" y="265" text-anchor="middle" class="label">
-    Developer
-  </text>
-  <text x="115" y="287" text-anchor="middle" class="small">
-    git push main
-  </text>
+## 4.4 File Upload Flow
 
-  <!-- GitHub -->
-  <rect x="250" y="210" width="180" height="120" class="github"/>
-  <text x="340" y="250" text-anchor="middle" class="label">
-    GitHub
-  </text>
-  <text x="340" y="275" text-anchor="middle" class="small">
-    Repository
-  </text>
-  <text x="340" y="295" text-anchor="middle" class="small">
-    GitHub Actions
-  </text>
+Attachments do not pass through the API server.
 
-  <!-- Secret scan -->
-  <rect x="490" y="80" width="180" height="70" class="github"/>
-  <text x="580" y="110" text-anchor="middle" class="label">
-    Secret Scan
-  </text>
-  <text x="580" y="132" text-anchor="middle" class="small">
-    TruffleHog
-  </text>
+Instead:
 
-  <!-- Tests -->
-  <rect x="490" y="180" width="180" height="70" class="github"/>
-  <text x="580" y="210" text-anchor="middle" class="label">
-    Unit Tests
-  </text>
-  <text x="580" y="232" text-anchor="middle" class="small">
-    pytest
-  </text>
+```text
+Browser
+   │
+   │ Request presigned URL
+   ▼
+FastAPI
+   │
+   │ Presigned URL
+   ▼
+Browser
+   │
+   │ Direct upload
+   ▼
+S3 Upload Bucket
+   │
+   │ ObjectCreated event
+   ▼
+Lambda
+   │
+   │ Resize using Pillow
+   ▼
+S3 thumbnails/
+```
 
-  <!-- OIDC -->
-  <rect x="490" y="280" width="180" height="70" class="aws"/>
-  <text x="580" y="310" text-anchor="middle" class="label">
-    AWS OIDC
-  </text>
-  <text x="580" y="332" text-anchor="middle" class="small">
-    IAM Role
-  </text>
+This reduces API bandwidth and CPU usage because the application never receives the file bytes.
 
-  <!-- ECR -->
-  <rect x="740" y="80" width="180" height="70" class="storage"/>
-  <text x="830" y="110" text-anchor="middle" class="label">
-    Amazon ECR
-  </text>
-  <text x="830" y="132" text-anchor="middle" class="small">
-    Docker Image
-  </text>
+The backend exposes:
 
-  <!-- S3 -->
-  <rect x="740" y="180" width="180" height="70" class="storage"/>
-  <text x="830" y="210" text-anchor="middle" class="label">
-    Amazon S3
-  </text>
-  <text x="830" y="232" text-anchor="middle" class="small">
-    Frontend
-  </text>
+```text
+GET /api/tickets/{id}/presigned-url
+```
 
-  <!-- ECS -->
-  <rect x="740" y="280" width="180" height="70" class="compute"/>
-  <text x="830" y="310" text-anchor="middle" class="label">
-    ECS Fargate
-  </text>
-  <text x="830" y="332" text-anchor="middle" class="small">
-    Rolling Deployment
-  </text>
+for generating the temporary upload URL.
 
-  <!-- Smoke -->
-  <rect x="980" y="180" width="170" height="100" class="dev"/>
-  <text x="1065" y="215" text-anchor="middle" class="label">
-    Smoke Test
-  </text>
-  <text x="1065" y="240" text-anchor="middle" class="small">
-    CloudFront
-  </text>
-  <text x="1065" y="258" text-anchor="middle" class="small">
-    HTTP 200
-  </text>
+---
 
-  <!-- arrows -->
-  <path d="M190 270 L250 270" class="arrow"/>
+# 5. ☁️ AWS Services Used
 
-  <path d="M430 240 L490 115" class="arrow"/>
-  <path d="M430 260 L490 215" class="arrow"/>
-  <path d="M430 290 L490 315" class="arrow"/>
+The POC intentionally uses a focused set of AWS services.
 
-  <path d="M670 115 L740 115" class="arrow"/>
-  <path d="M670 215 L740 215" class="arrow"/>
-  <path d="M670 315 L740 315" class="arrow"/>
+| Service                   | Purpose                                  |
+| ------------------------- | ---------------------------------------- |
+| Amazon VPC                | Network isolation                        |
+| Subnets                   | Public/private network separation        |
+| Security Groups           | Network access control                   |
+| Application Load Balancer | Public API entry point                   |
+| Amazon ECS Fargate        | Runs FastAPI container                   |
+| Amazon ECR                | Stores Docker images                     |
+| Amazon RDS PostgreSQL     | Persistent database                      |
+| Amazon S3                 | Frontend and attachments                 |
+| Amazon CloudFront         | Global frontend delivery and API routing |
+| AWS Lambda                | Thumbnail generation                     |
+| AWS Secrets Manager       | Database credentials                     |
+| Parameter Store           | Application configuration                |
+| IAM                       | Permissions and roles                    |
+| CloudWatch                | Logs, metrics, dashboards and alarms     |
+| Terraform                 | Infrastructure as Code                   |
+| GitHub Actions            | CI/CD                                    |
+| GitHub OIDC               | Keyless GitHub-to-AWS authentication     |
 
-  <path d="M920 315 L980 235" class="arrow"/>
+---
 
-</svg>
+# 6. 📅 POC Milestones
+
+# M0 — Manual AWS Deployment
+
+### Objective
+
+Understand the AWS components before automating them.
+
+The application is deployed manually using the AWS Console.
+
+### Expected resources
+
+* VPC
+* Public subnets
+* Private subnets
+* Security groups
+* Application Load Balancer
+* ECS cluster
+* ECS task definition
+* ECS service
+* Container
+
+### Verification
+
+The ALB URL should return a valid application response.
+
+### Learning
+
+M0 demonstrates why manual deployment is difficult to maintain and why Infrastructure as Code is required.
+
+---
+
+# M1 — Containerization
+
+## Objective
+
+Create a production-ready Docker image for the FastAPI application.
+
+### Requirements
+
+* Multi-stage Docker build
+* Non-root container user
+* No build tools in final image
+* Image tagged with Git commit SHA
+* Image stored in Amazon ECR
+
+Example image tag:
+
+```text
+<git-commit-sha>
+```
+
+instead of:
+
+```text
+latest
+```
+
+This makes every deployment traceable to a specific source-code version.
+
+### Dockerfile
+
+The project contains:
+
+```text
+Dockerfile
+```
+
+which builds the FastAPI application into a production container.
+
+---
+
+# M2 — Infrastructure as Code
+
+## Objective
+
+Recreate the AWS infrastructure using Terraform.
+
+The infrastructure includes:
+
+* VPC
+* Public subnets
+* Private subnets
+* Availability Zones
+* Internet Gateway
+* NAT Gateway
+* Security Groups
+* Application Load Balancer
+* Target Group
+* ECS Cluster
+* ECS Task Definition
+* ECS Service
+
+### Important requirement
+
+The application container runs in private subnets.
+
+The ALB is the public-facing component.
+
+```text
+Internet
+   ↓
+ALB — Public
+   ↓
+ECS — Private
+```
+
+### Terraform principle
+
+No infrastructure should need to be manually created after the Terraform implementation is complete.
+
+The expected workflow is:
+
+```bash
+terraform apply
+```
+
+and later:
+
+```bash
+terraform destroy
 ```
 
 ---
 
-# 4. 📎 File Attachment Architecture
+# M3 — Database and Secrets
 
-TicketDesk uses an event-driven architecture for attachments.
+## Objective
 
-```html
-<svg width="100%" viewBox="0 0 1100 500" xmlns="http://www.w3.org/2000/svg">
+Add persistent storage and secure application configuration.
 
-  <defs>
-    <marker id="arrow4" markerWidth="10" markerHeight="10"
-            refX="9" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
-    </marker>
+### Database
 
-    <style>
-      .box {
-        fill: white;
-        stroke: #333;
-        stroke-width: 2;
-        rx: 12;
-      }
+Amazon RDS PostgreSQL is used.
 
-      .api {
-        fill: #ecfdf5;
-        stroke: #059669;
-        stroke-width: 2;
-        rx: 12;
-      }
+The database:
 
-      .s3 {
-        fill: #eff6ff;
-        stroke: #2563eb;
-        stroke-width: 2;
-        rx: 12;
-      }
+* Runs in private subnets
+* Is not publicly accessible
+* Uses encryption at rest
+* Has automated backups
+* Is reachable only from the application security group
 
-      .lambda {
-        fill: #fff7ed;
-        stroke: #f97316;
-        stroke-width: 2;
-        rx: 12;
-      }
+### Secrets
 
-      text {
-        font-family: Arial, sans-serif;
-        fill: #111827;
-      }
+Database credentials are stored in:
 
-      .title {
-        font-size: 22px;
-        font-weight: bold;
-      }
+```text
+AWS Secrets Manager
+```
 
-      .label {
-        font-size: 15px;
-        font-weight: bold;
-      }
+The application retrieves them at runtime.
 
-      .small {
-        font-size: 12px;
-        fill: #4b5563;
-      }
+Sensitive values must never be committed to Git.
 
-      .arrow {
-        stroke: #374151;
-        stroke-width: 2;
-        fill: none;
-        marker-end: url(#arrow4);
-      }
-    </style>
-  </defs>
+### Parameter Store
 
-  <text x="550" y="35" text-anchor="middle" class="title">
-    TicketDesk — Serverless Attachment Processing
-  </text>
+Non-secret application configuration is stored in:
 
-  <!-- Browser -->
-  <rect x="40" y="200" width="170" height="80" class="box"/>
-  <text x="125" y="235" text-anchor="middle" class="label">
-    Browser
-  </text>
-  <text x="125" y="257" text-anchor="middle" class="small">
-    Upload File
-  </text>
+```text
+AWS Systems Manager Parameter Store
+```
 
-  <!-- API -->
-  <rect x="280" y="170" width="200" height="140" class="api"/>
-  <text x="380" y="215" text-anchor="middle" class="label">
-    FastAPI
-  </text>
-  <text x="380" y="240" text-anchor="middle" class="small">
-    Generate Presigned URL
-  </text>
-  <text x="380" y="262" text-anchor="middle" class="small">
-    Store Attachment Metadata
-  </text>
+The ECS task role allows the application to retrieve the required configuration.
 
-  <!-- S3 -->
-  <rect x="560" y="100" width="210" height="100" class="s3"/>
-  <text x="665" y="140" text-anchor="middle" class="label">
-    S3 Upload Bucket
-  </text>
-  <text x="665" y="165" text-anchor="middle" class="small">
-    Original File
-  </text>
+### Persistence test
 
-  <!-- Lambda -->
-  <rect x="830" y="100" width="210" height="100" class="lambda"/>
-  <text x="935" y="140" text-anchor="middle" class="label">
-    AWS Lambda
-  </text>
-  <text x="935" y="165" text-anchor="middle" class="small">
-    Pillow Thumbnail Generator
-  </text>
+The application must satisfy:
 
-  <!-- Thumbnail -->
-  <rect x="830" y="300" width="210" height="90" class="s3"/>
-  <text x="935" y="337" text-anchor="middle" class="label">
-    S3 thumbnails/
-  </text>
-  <text x="935" y="360" text-anchor="middle" class="small">
-    Generated Thumbnail
-  </text>
+```text
+Create ticket
+      ↓
+Restart ECS task
+      ↓
+Ticket still exists
+```
 
-  <!-- arrows -->
-  <path d="M210 235 L280 235" class="arrow"/>
-  <text x="245" y="220" text-anchor="middle" class="small">
-    Request URL
-  </text>
+This proves the application is using RDS rather than temporary container storage.
 
-  <path d="M480 210 L560 155" class="arrow"/>
-  <text x="520" y="170" text-anchor="middle" class="small">
-    Presigned URL
-  </text>
+---
 
-  <path d="M480 250 L560 155" class="arrow"/>
-  <text x="520" y="255" text-anchor="middle" class="small">
-    Direct PUT
-  </text>
+# M4 — Frontend Deployment
 
-  <path d="M770 150 L830 150" class="arrow"/>
-  <text x="800" y="135" text-anchor="middle" class="small">
-    ObjectCreated
-  </text>
+## Objective
 
-  <path d="M935 200 L935 300" class="arrow"/>
-  <text x="970" y="255" class="small">
-    Resize
-  </text>
+Deploy the static frontend securely.
 
-</svg>
+The frontend is stored in:
+
+```text
+Amazon S3
+```
+
+and delivered through:
+
+```text
+Amazon CloudFront
+```
+
+The S3 bucket is private.
+
+CloudFront accesses it using:
+
+```text
+Origin Access Control (OAC)
+```
+
+### Routing
+
+CloudFront handles:
+
+```text
+/*
+```
+
+through the frontend S3 origin.
+
+API requests:
+
+```text
+/api/*
+```
+
+are routed to the Application Load Balancer.
+
+This gives the application a single CloudFront entry point.
+
+---
+
+# M5 — Serverless File Processing
+
+## Objective
+
+Implement direct S3 uploads and serverless thumbnail generation.
+
+### Upload process
+
+The API generates a presigned S3 URL.
+
+The browser uploads directly to S3.
+
+The API does not process the file bytes.
+
+### Lambda
+
+An S3 `ObjectCreated` event triggers the Lambda function.
+
+The Lambda:
+
+1. Receives the S3 event.
+2. Downloads the image.
+3. Opens the image using Pillow.
+4. Resizes it to approximately 200x200.
+5. Writes the thumbnail under:
+
+```text
+thumbnails/
+```
+
+### Expected result
+
+When a screenshot is attached to a ticket:
+
+```text
+Original file
+      ↓
+S3
+      ↓
+Lambda
+      ↓
+Thumbnail
+      ↓
+S3 thumbnails/
 ```
 
 ---
 
-# 5. 🗺️ Terraform Infrastructure Relationship
+# M6 — CI/CD Pipeline
 
-Terraform is responsible for creating the infrastructure represented by the architecture.
+## Objective
+
+Remove manual deployment steps.
+
+The deployment pipeline is implemented using:
+
+```text
+GitHub Actions
+```
+
+with:
+
+```text
+AWS OIDC
+```
+
+instead of static AWS access keys.
+
+The current repository contains a workflow generated through Terraform:
+
+```text
+.github/workflows/deploy.yml
+```
+
+---
+
+## Pipeline Flow
+
+```text
+git push origin main
+        ↓
+Secret Scan
+        ↓
+Unit Tests
+        ↓
+AWS OIDC Authentication
+        ↓
+Frontend Deployment
+        ↓
+Docker Build
+        ↓
+ECR Push
+        ↓
+ECS Task Definition Update
+        ↓
+ECS Deployment
+        ↓
+Smoke Test
+```
+
+---
+
+## Secret Scanning
+
+The pipeline uses TruffleHog to detect committed secrets.
+
+A secret-scanning failure must block deployment.
+
+---
+
+## Unit Tests
+
+The pipeline runs:
+
+```bash
+pytest tests/
+```
+
+The test suite uses an isolated/in-memory SQLite database for testing.
+
+---
+
+## Docker Image
+
+The image is tagged using:
+
+```text
+Git commit SHA
+```
+
+This provides deployment traceability.
+
+---
+
+## ECS Deployment
+
+The workflow:
+
+1. Gets the current ECS task definition.
+2. Replaces the container image with the new SHA-tagged ECR image.
+3. Updates the ECS service.
+4. Performs a rolling deployment.
+5. Runs the smoke test.
+
+---
+
+# M7 — Observability
+
+## Objective
+
+Make failures visible without manually checking the application.
+
+The production deployment should provide:
+
+* CloudWatch application logs
+* Finite log retention
+* Request metrics
+* Error metrics
+* Response latency
+* ECS CPU usage
+* ECS memory usage
+* Database connections
+* CloudWatch dashboard
+* CloudWatch alarms
+
+### Required alarms
+
+At minimum:
+
+```text
+1. High HTTP 5xx errors
+2. Unhealthy ALB targets
+3. High RDS CPU
+```
+
+The alarms should notify a configured notification target.
+
+---
+
+# M8 — Harden and Prove
+
+The final stage verifies that the deployment is actually reproducible.
+
+## Required activities
+
+### 1. Deployment readiness
+
+Verify all 34 checklist items.
+
+### 2. Resource tagging
+
+Resources should contain:
+
+```text
+Project
+Owner
+Environment
+CostCenter
+```
+
+### 3. Smoke testing
+
+Run the complete smoke test suite.
+
+### 4. Load sanity check
+
+Run:
+
+```text
+20 concurrent users
+5 minutes
+```
+
+The objective is to verify that the application operates without errors.
+
+### 5. Cost report
+
+Document:
+
+* Total estimated/actual spend
+* AWS services generating cost
+* Two most expensive resources/services
+* Cost-control opportunities
+
+### 6. Destroy and rebuild
+
+The final test is:
+
+```bash
+terraform destroy
+```
+
+followed by:
+
+```bash
+terraform apply
+```
+
+The application must become operational again without relying on forgotten manual configuration.
+
+---
+
+# 7. 📂 Repository Structure
+
+```text
+poc-aws-deployment-ticketdesk/
+│
+├── .github/
+│   └── workflows/
+│       └── deploy.yml
+│
+├── static/
+│   └── index.html
+│
+├── tests/
+│   └── test_main.py
+│
+├── ticketdesk-terraform/
+│   ├── alb.tf
+│   ├── cloudfront.tf
+│   ├── ecs.tf
+│   ├── github_actions.tf
+│   ├── iam.tf
+│   ├── lambda.tf
+│   ├── lambda_src/
+│   ├── networking.tf
+│   ├── outputs.tf
+│   ├── rds.tf
+│   ├── s3.tf
+│   ├── secrets.tf
+│   ├── security_groups.tf
+│   ├── versions.tf
+│   └── terraform.tfvars
+│
+├── Dockerfile
+├── main.py
+├── requirements.txt
+└── README.md
+```
+
+---
+
+# 8. 🧩 Terraform Components
+
+## `networking.tf`
+
+Defines:
+
+* VPC
+* Public subnets
+* Private subnets
+* Availability Zones
+* Internet Gateway
+* NAT Gateway
+* Route tables
+
+---
+
+## `security_groups.tf`
+
+Defines network-level access controls between:
+
+```text
+Internet → ALB
+ALB → ECS
+ECS → RDS
+```
+
+Security groups should reference other security groups wherever possible instead of allowing unrestricted access.
+
+---
+
+## `alb.tf`
+
+Creates:
+
+* Application Load Balancer
+* Target Group
+* Listener
+* Health check
+
+The ALB provides the public entry point to the backend.
+
+---
+
+## `ecs.tf`
+
+Creates:
+
+* ECS Cluster
+* Task Definition
+* ECS Service
+* Fargate configuration
+* Container configuration
+
+The ECS task runs in private subnets.
+
+---
+
+## `rds.tf`
+
+Creates the PostgreSQL database.
+
+The database is private and accessible only from the application layer.
+
+---
+
+## `s3.tf`
+
+Creates:
+
+1. Private frontend bucket
+2. Private uploads bucket
+
+The frontend bucket is accessed through CloudFront OAC.
+
+The uploads bucket receives presigned uploads.
+
+---
+
+## `cloudfront.tf`
+
+Creates the CloudFront distribution.
+
+It provides:
+
+* Global frontend delivery
+* Private S3 access
+* `/api/*` routing to the ALB
+
+---
+
+## `lambda.tf`
+
+Creates:
+
+* Lambda function
+* S3 event notification
+* Required IAM permissions
+
+The Lambda generates thumbnails using Pillow.
+
+---
+
+## `secrets.tf`
+
+Creates:
+
+* Secrets Manager resources
+* Parameter Store configuration
+
+Sensitive database information is kept outside source control.
+
+---
+
+## `iam.tf`
+
+Defines:
+
+* ECS task roles
+* ECS execution roles
+* GitHub Actions OIDC role
+* Required IAM policies
+
+The objective is least-privilege access.
+
+---
+
+## `github_actions.tf`
+
+Terraform generates the GitHub Actions deployment workflow using environment-specific infrastructure values.
+
+This removes the requirement to manually edit deployment configuration after provisioning.
+
+---
+
+# 9. 🔐 Security Design
+
+Security is a major part of the POC.
+
+## No credentials in Git
+
+The repository must not contain:
+
+```text
+AWS Access Key
+AWS Secret Key
+Database Password
+Private Key
+API Secret
+```
+
+Secret scanning is included in the CI/CD pipeline.
+
+---
+
+## GitHub OIDC
+
+GitHub Actions authenticates to AWS using OIDC.
+
+Therefore, static AWS credentials do not need to be stored in GitHub repository secrets.
+
+```text
+GitHub Actions
+      ↓
+GitHub OIDC
+      ↓
+AWS IAM Role
+      ↓
+AWS Resources
+```
+
+---
+
+## Private ECS
+
+The FastAPI container runs in private subnets.
+
+The internet does not directly access the ECS task.
+
+---
+
+## Private RDS
+
+RDS is configured as:
+
+```text
+Publicly Accessible = false
+```
+
+Only the application security group should be able to connect to the database.
+
+---
+
+## Private S3
+
+The frontend S3 bucket is not public.
+
+CloudFront uses OAC to access the bucket.
+
+---
+
+## Least Privilege IAM
+
+IAM policies should provide only the permissions required by each component.
+
+Avoid:
+
+```json
+{
+  "Action": "*",
+  "Resource": "*"
+}
+```
+
+---
+
+# 10. 🩺 Health Check
+
+The backend provides:
+
+```text
+GET /api/health
+```
+
+The endpoint performs a database health check.
+
+The endpoint is used by:
+
+* ALB health checks
+* Smoke tests
+* Deployment verification
+
+A healthy response confirms that the application and database are communicating correctly.
+
+---
+
+# 11. 🔌 API Reference
+
+| Method | Endpoint                          | Purpose                       |
+| ------ | --------------------------------- | ----------------------------- |
+| GET    | `/`                               | Frontend/application entry    |
+| GET    | `/api/health`                     | Application + database health |
+| POST   | `/api/tickets/`                   | Create ticket                 |
+| GET    | `/api/tickets/`                   | List/filter tickets           |
+| PUT    | `/api/tickets/{id}/status`        | Update ticket status          |
+| POST   | `/api/tickets/{id}/comments/`     | Add comment                   |
+| GET    | `/api/tickets/{id}/presigned-url` | Generate S3 upload URL        |
+| PUT    | `/api/tickets/{id}/attach`        | Attach uploaded file          |
+| GET    | `/api/dashboard/`                 | Dashboard statistics          |
+
+---
+
+# 12. 🖥️ Local Development
+
+The application can be tested locally without provisioning AWS infrastructure.
+
+## Create virtual environment
+
+### Windows
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+### Linux/macOS
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+---
+
+## Install dependencies
+
+```bash
+pip install -r requirements.txt
+pip install pytest httpx
+```
+
+---
+
+## Run tests
+
+```bash
+python -m pytest tests/
+```
+
+---
+
+## Start application
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+Open:
+
+```text
+http://localhost:8000
+```
+
+---
+
+# 13. 🛠️ AWS Deployment From Scratch
+
+## Prerequisites
+
+Install:
+
+```text
+Git
+AWS CLI v2
+Terraform 1.7+
+Python 3.11+
+Docker Desktop
+```
+
+Verify:
+
+```bash
+git --version
+aws --version
+terraform --version
+python --version
+docker --version
+```
+
+Configure AWS CLI:
+
+```bash
+aws configure
+```
+
+The AWS identity used for initial Terraform provisioning requires sufficient permissions to create the required infrastructure.
+
+---
+
+# 14. 📥 Clone Repository
+
+```bash
+git clone https://github.com/Vivek-27/poc-aws-deployment-ticketdesk.git
+cd poc-aws-deployment-ticketdesk
+```
+
+---
+
+# 15. 🗄️ Terraform Remote State
+
+Terraform state should be stored remotely rather than only on the local machine.
+
+The backend uses:
+
+```text
+Amazon S3
+```
+
+with state locking configured according to the Terraform/AWS backend setup used by the project.
+
+Example configuration:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "YOUR-STATE-BUCKET-NAME"
+    key            = "ticketdesk/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
+}
+```
+
+Replace the placeholder values with the environment's actual state backend configuration.
+
+---
+
+# 16. ⚙️ Terraform Variables
+
+Configure:
+
+```text
+ticketdesk-terraform/terraform.tfvars
+```
+
+Example:
+
+```hcl
+aws_region  = "us-east-1"
+environment = "poc"
+
+github_org  = "Vivek-27"
+github_repo = "poc-aws-deployment-ticketdesk"
+```
+
+Do not place passwords, access keys or other secrets inside `terraform.tfvars`.
+
+---
+
+# 17. 🚀 Provision Infrastructure
+
+Navigate to Terraform:
+
+```bash
+cd ticketdesk-terraform
+```
+
+Initialize:
+
+```bash
+terraform init
+```
+
+Review the plan:
+
+```bash
+terraform plan
+```
+
+Apply:
+
+```bash
+terraform apply
+```
+
+or:
+
+```bash
+terraform apply -auto-approve
+```
+
+Terraform provisions the AWS infrastructure required by the application.
+
+---
+
+# 18. 🔄 GitHub Actions Deployment
+
+After infrastructure provisioning, the GitHub Actions workflow is configured with the environment-specific infrastructure values.
+
+Return to the repository root:
+
+```bash
+cd ..
+```
+
+Commit changes:
+
+```bash
+git add .
+git commit -m "feat: deploy ticketdesk infrastructure and workflow"
+```
+
+Push:
+
+```bash
+git push origin main
+```
+
+A push to `main` starts the deployment pipeline.
+
+---
+
+# 19. 🔁 CI/CD Pipeline in Detail
+
+```text
+Developer
+    │
+    │ git push
+    ▼
+GitHub
+    │
+    ▼
+GitHub Actions
+    │
+    ├── Secret Scan
+    │
+    ├── Unit Tests
+    │
+    ├── AWS OIDC Authentication
+    │
+    ├── Deploy Frontend
+    │
+    ├── Docker Build
+    │
+    ├── Tag with Commit SHA
+    │
+    ├── Push Image to ECR
+    │
+    ├── Update ECS Task Definition
+    │
+    ├── Deploy ECS Service
+    │
+    └── Smoke Test
+```
+
+If any required validation step fails, deployment must stop.
+
+---
+
+# 20. 🧪 Smoke Test
+
+The deployment pipeline performs a post-deployment health check against the deployed CloudFront application.
+
+The basic validation is:
+
+```text
+CloudFront URL
+      ↓
+HTTP request
+      ↓
+Expected HTTP 200
+```
+
+The smoke test verifies that the deployed application is reachable after the ECS deployment.
+
+---
+
+# 21. 📊 Observability
+
+Application logs should be available through:
+
+```text
+Amazon CloudWatch Logs
+```
+
+The production monitoring layer should include a CloudWatch dashboard covering:
+
+```text
+Request count
+Error rate
+Response latency
+ECS CPU
+ECS memory
+Database connections
+```
+
+Required alarms:
+
+```text
+HTTP 5xx errors
+Unhealthy ALB targets
+High RDS CPU
+```
+
+The alarms must have an actual notification destination.
+
+---
+
+# 22. 💰 Cost Management
+
+The POC requires a cost report covering:
+
+* AWS services used
+* Approximate/actual spend
+* Most expensive resources
+* Cost-control opportunities
+
+Particular attention should be given to resources that can continue generating charges after testing.
+
+Before finishing work, run:
+
+```bash
+terraform destroy
+```
+
+and verify that no unexpected billable infrastructure remains.
+
+---
+
+# 23. 🧹 Teardown
+
+To remove the complete Terraform-managed stack:
+
+```bash
+cd ticketdesk-terraform
+terraform destroy
+```
+
+or:
+
+```bash
+terraform destroy -auto-approve
+```
+
+The final POC test is:
+
+```text
+terraform destroy
+        ↓
+AWS resources removed
+        ↓
+terraform apply
+        ↓
+Infrastructure recreated
+        ↓
+GitHub Actions deployment
+        ↓
+Application available again
+```
+
+This proves that the environment is reproducible.
+
+---
+
+# 24. ✅ Deployment Readiness Checklist
+
+The POC defines 34 deployment-readiness requirements.
+
+## Container
+
+* [ ] 1. Multi-stage Dockerfile
+* [ ] 2. Container runs as a non-root user
+* [ ] 3. No SDK/compiler/build tools in final image
+* [ ] 4. Docker image tagged with Git commit SHA
+* [ ] 5. ECR image scanning enabled
+
+## Infrastructure as Code
+
+* [ ] 6. All infrastructure defined in Terraform
+* [ ] 7. Terraform state uses remote backend with locking
+* [ ] 8. Environment-specific values are variables
+* [ ] 9. `terraform destroy` followed by `terraform apply` rebuilds the stack
+
+## Network and Compute
+
+* [ ] 10. ECS container runs in private subnet
+* [ ] 11. Only the load balancer is publicly exposed
+* [ ] 12. Security groups use restricted references instead of unrestricted access
+* [ ] 13. Health check endpoint configured
+* [ ] 14. At least two Availability Zones used
+* [ ] 15. Application reachable through ALB/CloudFront URL
+
+## Database and Configuration
+
+* [ ] 16. RDS is private
+* [ ] 17. Database password stored in Secrets Manager
+* [ ] 18. Application configuration stored in Parameter Store
+* [ ] 19. No credentials committed to repository
+* [ ] 20. Encryption at rest enabled
+* [ ] 21. Automated database backups enabled
+
+## Frontend and Serverless
+
+* [ ] 22. Frontend served through CloudFront
+* [ ] 23. Frontend S3 bucket is private
+* [ ] 24. Attachments uploaded using presigned S3 URLs
+* [ ] 25. Lambda triggered by S3 upload
+* [ ] 26. Thumbnail generation works end to end
+
+## Pipeline
+
+* [ ] 27. Push to `main` automatically deploys
+* [ ] 28. Failing tests block deployment
+* [ ] 29. Secret scanning failure blocks deployment
+* [ ] 30. Smoke test runs after deployment
+
+## Operations
+
+* [ ] 31. Logs available in CloudWatch with finite retention
+* [ ] 32. Dashboard shows requests/errors/latency/CPU/memory/database metrics
+* [ ] 33. Three alarms notify a configured notification target
+
+## Housekeeping
+
+* [ ] 34. Resources are tagged and cost/reporting requirements are documented
+* [ ] IAM follows least privilege
+* [ ] Cost remains within the assigned budget
+* [ ] README allows a new joiner to reproduce the deployment
+
+> **Note:** The official POC checklist contains 34 numbered requirements; the exact verification status should be confirmed during the final demo rather than assuming implementation from Terraform code alone.
+
+---
+
+# 25. 🚨 Five Pass/Fail Security Requirements
+
+These requirements are critical.
+
+## 1. No credentials in repository
+
+No AWS keys, database passwords or other secrets may be committed.
+
+---
+
+## 2. No unrestricted IAM policy
+
+Avoid:
+
+```json
+{
+  "Action": "*",
+  "Resource": "*"
+}
+```
+
+IAM must follow least privilege.
+
+---
+
+## 3. Database must not be internet accessible
+
+RDS must have:
+
+```text
+Publicly Accessible = false
+```
+
+---
+
+## 4. Stack must rebuild from zero
+
+The documented deployment process must work from a clean environment.
+
+---
+
+## 5. Terraform destroy must remove billable infrastructure
+
+After:
+
+```bash
+terraform destroy
+```
+
+the environment should not leave unexpected billable resources behind.
+
+---
+
+# 26. 🧪 Functional Verification
+
+The final application should be tested end to end.
+
+## Ticket creation
+
+```text
+Create ticket
+      ↓
+Ticket stored in RDS
+      ↓
+Ticket appears in application
+```
+
+## Ticket status
+
+Verify:
+
+```text
+OPEN
+ ↓
+IN_PROGRESS
+ ↓
+RESOLVED
+ ↓
+CLOSED
+```
+
+## Comments
+
+Create a ticket comment and verify persistence.
+
+## Filtering
+
+Verify filtering by:
+
+```text
+Status
+Priority
+Category
+```
+
+## Dashboard
+
+Verify dashboard counts by:
+
+```text
+Status
+Priority
+```
+
+## Attachment
+
+Verify:
+
+```text
+Create ticket
+      ↓
+Generate presigned URL
+      ↓
+Upload directly to S3
+      ↓
+S3 event
+      ↓
+Lambda
+      ↓
+Thumbnail
+```
+
+## Persistence
+
+Restart/redeploy ECS and confirm that existing tickets remain available.
+
+---
+
+# 27. 🐳 Docker Verification
+
+Build locally:
+
+```bash
+docker build -t ticketdesk:test .
+```
+
+Run:
+
+```bash
+docker run -p 8000:8000 ticketdesk:test
+```
+
+Verify:
+
+```text
+http://localhost:8000
+```
+
+Check that the container runs as the configured non-root user.
+
+---
+
+# 28. 🐛 Troubleshooting
+
+## S3 Presigned Upload Returns 403
+
+Possible causes:
+
+* Content-Type mismatch
+* S3 CORS configuration
+* Corporate proxy/Zscaler modifying request headers
+* Invalid/expired presigned URL
+
+Verify that the frontend uses the expected content type and that the S3 bucket CORS configuration permits the required upload method.
+
+---
+
+## Lambda `Runtime.ImportModuleError`
+
+If Pillow reports an error involving:
+
+```text
+_imaging
+```
+
+the dependency may have been built for the wrong operating system.
+
+For Python 3.11 Lambda compatibility, install the Linux-compatible wheel:
+
+```bash
+pip install \
+  --platform manylinux2014_x86_64 \
+  --target lambda_src \
+  --implementation cp \
+  --python-version 3.11 \
+  --only-binary=:all: \
+  --upgrade Pillow
+```
+
+---
+
+## GitHub Actions OIDC Failure
+
+If GitHub Actions is stuck while assuming the AWS role, verify:
+
+```text
+github_org
+github_repo
+```
+
+in:
+
+```text
+terraform.tfvars
+```
+
+The values must exactly match the GitHub repository referenced by the IAM trust policy.
+
+---
+
+## ECS Task Fails
+
+The first debugging step should be checking:
+
+```text
+ECS Task Logs
+ECS Stopped Task Reason
+CloudWatch Logs
+```
+
+Do not immediately change Terraform configuration.
+
+First determine what the application or ECS platform is reporting.
+
+---
+
+# 29. 📚 What This POC Demonstrates
+
+After completing the POC, the developer should be able to explain and demonstrate:
+
+### Containerization
+
+How to package a FastAPI application into a production Docker image.
+
+### AWS Networking
+
+How public and private subnets separate internet-facing and internal components.
+
+### ECS Fargate
+
+How containerized applications run without managing EC2 servers.
+
+### Load Balancing
+
+How an ALB distributes requests to ECS tasks.
+
+### RDS
+
+How persistent application data is stored outside the container.
+
+### Secrets Manager
+
+How sensitive credentials are retrieved at runtime.
+
+### Parameter Store
+
+How application configuration can be separated from application code.
+
+### S3
+
+How static assets and user uploads can be stored independently.
+
+### CloudFront
+
+How a global CDN can securely deliver the frontend and route API requests.
+
+### Lambda
+
+How an event-driven serverless function can process uploaded files.
+
+### IAM
+
+How AWS permissions are controlled using roles and least privilege.
+
+### Terraform
+
+How AWS infrastructure can be represented as code and recreated consistently.
+
+### GitHub Actions
+
+How application changes can automatically reach AWS after a Git push.
+
+### OIDC
+
+How GitHub Actions can authenticate to AWS without storing long-lived AWS access keys.
+
+### CloudWatch
+
+How application and infrastructure health can be monitored.
+
+---
+
+# 30. 🏁 Definition of Done
+
+The TicketDesk POC is considered complete when:
+
+```text
+                    ┌──────────────────────┐
+                    │   Git Push to main   │
+                    └──────────┬───────────┘
+                               ↓
+                    ┌──────────────────────┐
+                    │   GitHub Actions     │
+                    └──────────┬───────────┘
+                               ↓
+                 ┌─────────────┴─────────────┐
+                 ↓                           ↓
+          Unit Tests                  Secret Scan
+                 │                           │
+                 └─────────────┬─────────────┘
+                               ↓
+                         Docker Build
+                               ↓
+                              ECR
+                               ↓
+                        ECS Fargate
+                               ↓
+                              ALB
+                               ↓
+                          CloudFront
+                               ↓
+                           Browser
+```
+
+At the same time:
+
+```text
+ECS
+ │
+ ├── RDS PostgreSQL
+ │
+ ├── Secrets Manager
+ │
+ └── Parameter Store
+
+Browser
+ │
+ └── Presigned S3 Upload
+          ↓
+       S3 Event
+          ↓
+       Lambda
+          ↓
+      Thumbnail
+```
+
+The final deployment must be:
+
+* Automated
+* Repeatable
+* Secure
+* Containerized
+* Infrastructure-as-Code driven
+* Observable
+* Cost-conscious
+* Rebuildable from zero
+
+---
+
+# 31. 🚀 Stretch Goals
+
+Only attempt these after all mandatory requirements pass.
+
+| Stretch Goal                                  | Points |
+| --------------------------------------------- | -----: |
+| HTTPS with ACM certificate and real domain    |     +2 |
+| ECS Auto Scaling demonstrated under load      |     +2 |
+| Cognito authentication                        |     +2 |
+| Blue/green deployment with rollback           |     +3 |
+| Scheduled shutdown/startup for cost reduction |     +1 |
+| DynamoDB alternative implementation           |     +2 |
+
+Stretch goals should not be prioritized over the mandatory deployment-readiness requirements.
+
+---
+
+# 32. 📝 Final Project Summary
+
+TicketDesk demonstrates a complete cloud deployment lifecycle for a real application.
+
+The application starts as a FastAPI service and is transformed into a cloud-native AWS deployment:
+
+```text
+FastAPI
+   ↓
+Docker
+   ↓
+ECR
+   ↓
+ECS Fargate
+   ↓
+ALB
+   ↓
+CloudFront
+   ↓
+Users
+```
+
+Persistent data is handled by:
+
+```text
+ECS
+ ↓
+RDS PostgreSQL
+```
+
+Secrets are handled by:
+
+```text
+Secrets Manager
+```
+
+Configuration is handled by:
+
+```text
+Parameter Store
+```
+
+File processing is handled by:
+
+```text
+S3
+ ↓
+Lambda
+ ↓
+Thumbnail
+```
+
+Infrastructure is managed using:
 
 ```text
 Terraform
-    │
-    ├── VPC
-    │    ├── Public Subnets
-    │    │     └── Application Load Balancer
-    │    │
-    │    └── Private Subnets
-    │          ├── ECS Fargate
-    │          └── RDS PostgreSQL
-    │
-    ├── Security Groups
-    │
-    ├── IAM
-    │    └── GitHub OIDC Role
-    │
-    ├── ECR
-    │
-    ├── S3
-    │    ├── Frontend Bucket
-    │    └── Upload Bucket
-    │
-    ├── CloudFront
-    │
-    ├── Lambda
-    │
-    ├── Secrets Manager
-    │
-    └── Parameter Store
 ```
 
----
-
-# 6. 🔐 Network Security Relationship
-
-The network access model is intentionally restrictive.
+Application deployment is automated using:
 
 ```text
-                        INTERNET
-                            │
-                            ▼
-                 ┌────────────────────┐
-                 │        ALB         │
-                 │   Public Subnets   │
-                 └─────────┬──────────┘
-                           │
-                    ALB Security Group
-                           │
-                           ▼
-                 ┌────────────────────┐
-                 │   ECS Fargate      │
-                 │  Private Subnets   │
-                 └───────┬─────┬──────┘
-                         │     │
-              ECS SG ────┘     └──── ECS IAM Role
-                         │
-                         ▼
-                 ┌────────────────────┐
-                 │   RDS PostgreSQL   │
-                 │  Private Subnets   │
-                 └────────────────────┘
-
-RDS is NOT directly accessible from the Internet.
+GitHub Actions
+ ↓
+OIDC
+ ↓
+AWS
 ```
 
----
+The final objective is not simply to make TicketDesk work once.
 
-# 7. 📊 Service Responsibility Map
+The objective is to be able to say:
 
-| Layer              | AWS Service     | Responsibility              |
-| ------------------ | --------------- | --------------------------- |
-| Edge               | CloudFront      | Public entry point/CDN      |
-| Frontend           | S3              | Static application files    |
-| Networking         | VPC             | Network isolation           |
-| Networking         | ALB             | API traffic routing         |
-| Compute            | ECS Fargate     | FastAPI application         |
-| Container Registry | ECR             | Docker images               |
-| Database           | RDS PostgreSQL  | Persistent data             |
-| Storage            | S3              | Attachments                 |
-| Serverless         | Lambda          | Thumbnail generation        |
-| Secrets            | Secrets Manager | Database credentials        |
-| Configuration      | Parameter Store | Runtime configuration       |
-| Identity           | IAM             | Permissions                 |
-| Monitoring         | CloudWatch      | Logs/metrics/alarms         |
-| IaC                | Terraform       | Infrastructure provisioning |
-| CI/CD              | GitHub Actions  | Automated deployment        |
-| CI/CD Security     | GitHub OIDC     | Keyless AWS authentication  |
-
----
-
-# 8. 🔗 End-to-End Architecture Summary
-
-```text
-                         USER
-                           │
-                           ▼
-                     CLOUDFRONT
-                      /        \
-                     /          \
-                  /*              /api/*
-                   │                 │
-                   ▼                 ▼
-              PRIVATE S3           ALB
-              FRONTEND              │
-                                    ▼
-                              ECS FARGATE
-                              FASTAPI APP
-                               /    |    \
-                              /     |     \
-                             ▼      ▼      ▼
-                           RDS   SECRETS  PARAMETER
-                                  MANAGER   STORE
-                           
-                           File Upload
-                                │
-                                ▼
-                         PRESIGNED S3 URL
-                                │
-                                ▼
-                           S3 UPLOADS
-                                │
-                         ObjectCreated
-                                │
-                                ▼
-                            LAMBDA
-                                │
-                                ▼
-                         THUMBNAILS/S3
-```
-
-This represents the complete TicketDesk AWS deployment from the user's browser through the frontend, API, database, secrets, file storage and serverless processing.
-
----
+> **"I can deploy, operate, monitor, destroy, and rebuild a real application on AWS using Infrastructure as Code and CI/CD."**
