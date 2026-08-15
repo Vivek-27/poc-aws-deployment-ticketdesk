@@ -38,9 +38,12 @@ jobs:
       - name: Run Secret Scan
         uses: trufflesecurity/trufflehog@main
         with:
+          fetch-depth: 0
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head: ${{ github.event.pull_request.head.sha || github.event.after }}
+          extra_args: --only-verified
+
 
 
   deploy-app:
