@@ -39,8 +39,6 @@ jobs:
         uses: trufflesecurity/trufflehog-main-action@main
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
 
   deploy-app:
     name: Deploy Infrastructure Assets
