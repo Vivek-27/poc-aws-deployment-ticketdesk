@@ -225,7 +225,7 @@ def get_presigned_url(ticket_id: int, filename: str, file_size: Optional[int] = 
     try:
         url = s3_client.generate_presigned_url(
             'put_object',
-            Params={'Bucket': S3_BUCKET, 'Key': s3_key, 'ContentType': 'application/octet-stream'},
+            Params={'Bucket': S3_BUCKET, 'Key': s3_key},
             ExpiresIn=3600
         )
         return {"url": url, "key": s3_key}
