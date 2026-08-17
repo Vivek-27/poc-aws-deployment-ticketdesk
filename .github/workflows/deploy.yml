@@ -11,7 +11,7 @@ env:
   ECS_CLUSTER: poc-cluster
   ECS_TASK_DEFINITION: poc-task
   FRONTEND_BUCKET: poc-frontend-app-bucket
-  CLOUDFRONT_URL: https://d1mh0uo4tz9tvg.cloudfront.net
+  CLOUDFRONT_URL: https://d2tp967darbmrz.cloudfront.net
 
 permissions:
   id-token: write
